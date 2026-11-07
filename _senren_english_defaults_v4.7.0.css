@@ -1,0 +1,390 @@
+/* _senren_english_defaults_v4.7.0.css */
+:root {
+  /* CARD SETTINGS - Default States (true/false)
+  ============================================ */
+  /* General */
+  --english-enable-animations: true; /* Enable transition animations */
+
+  /* Front
+  -------------------------------------------- */
+  --english-word-sentence-default-expanded: false; /* Show sentence on word cards immediately */
+  --english-audio-sentence-default-expanded: false; /* Show sentence on audio cards immediately */
+  --english-hint-default-expanded: false; /* Show hint on cards immediately */
+
+  /* Back
+  -------------------------------------------- */
+  --english-translation-default-expanded: false; /* Show translation immediately */
+  --english-notes-default-expanded: false; /* Show notes immediately */
+  --english-collect-glossary-images: true; /* Enable glossary images to be collected into the picture box */
+  --english-no-duplicate-kana: false; /* Replace kana-only word with its reading */
+  --english-mute-sentence-audio: false; /* Mute any sentence audio */
+
+  /* Misc Info */
+  --english-misc-info-default-expanded: false; /* Show misc info immediately */
+  --english-misc-info-above: false; /* Display Misc Info above or below tags and external links */
+
+  /* NSFW */
+  --english-blur-nsfw-picture: true; /* Blur picture on NSFW cards */
+  --english-mute-nsfw-audio: false; /* Mute sentence audio on NSFW cards */
+
+  /* COMPONENT VISIBILITY ("1" to show, "0" to Hide)
+  ============================================ */
+  --english-auto-hide-left-controls: false; /* Hide left controls until the left edge is hovered or tapped */
+  --english-settings-visibility: 1; /* Settings toggle */
+  --english-main-bg-visibility: 1; /* Main bg */
+  --english-main-bg-shadow-visibility: 0; /* Box shadow around the main bg */
+  --english-custom-dark-mode-visibility: 1; /* Custom dark mode toggle */
+  --english-audio-visibility: 1; /* Audio button */
+  --english-freq-visibility: 1; /* Frequency */
+  --english-definition-title-visibility: 1; /* Dict title in the definition box */
+  --english-glossary-title-visibility: 1; /* Dict title in the glossary box */
+  --english-tag-visibility: 1; /* Tags */
+  --english-external-links-visibility: 1; /* External links */
+  --english-pitch-position-visibility: 1; /* Pitch number and hover label */
+  --english-misc-info-bg-visibility: 1; /* Misc info background */
+
+  /* Header/Mobile Visibility (≤ 1050px) */
+  --english-settings-visibility-header: 1; /* Settings toggle */
+  --english-main-bg-1050-visibility: 1; /* Main bg */
+  --english-main-bg-shadow-1050-visibility: 0; /* Shadow around the main bg */
+  --english-custom-dm-header-visibility: 1; /* Custom dark mode toggle */
+  --english-audio-header-visibility: 1; /* Audio button */
+  --english-freq-header-visibility: 1; /* Frequency */
+
+  /* TYPOGRAPHY & FONTS
+  ============================================ */
+  /* Global Settings */
+  --english-base-size: clamp(19px, 3vw, 24px);
+  --english-base-line-height: 1.5;
+  --english-bold-highlight: 0; /* "1" to bold highlights */
+  --english-bold-misc-info: 0; /* "1" to bold misc info text */
+
+  /* Font Families */
+  --english-serif:
+    Georgia, "Times New Roman", serif;
+  --english-sans:
+    "Segoe UI", Arial, sans-serif;
+
+  /* Word Sizes (Dynamic Scaling) */
+  --english-word-size-base: 2.5rem;
+  --english-word-size-4: 2.1rem; /* 4 chars */
+  --english-word-size-5: 2rem; /* 5 chars */
+  --english-word-size-6: 1.7rem; /* 6 chars */
+  --english-word-size-7: 1.6rem; /* 7 chars */
+  --english-word-size-8: 1.3rem; /* 8 chars */
+  --english-word-size-9: 1.15rem; /* 9+ chars */
+
+  /* Word Furigana */
+  --english-reading-position: above; /* "below" to display reading below word */
+  --english-dynamic-furigana-size: 0; /* "1" to use automatic sizing for furigana */
+  --english-furigana-size: 1rem;
+  --english-furigana-height: 0rem; /* Negative value moves it UP (e.g., -0.05rem), Positive moves it DOWN */
+
+  /* Sentence Furigana */
+  --english-sentence-furigana-display: 1; /* "0" to disable furigana in sentences */
+  --english-sentence-furigana-height: 0rem; /* Negative value moves it UP (e.g., -0.05rem), Positive moves it DOWN */
+
+  /* Wrapped Text Alignment */
+  --english-sentence-alignment: center; /* "left" or "right" to align wrapped sentences */
+  --english-misc-info-alignment: center; /* "left" or "right" to align wrapped misc info */
+
+  /* Text Sizes */
+  --english-sentence-size: 1.1rem;
+  --english-sentence-eng-size: 0.8rem;
+  --english-definition-size: 0.9rem;
+  --english-misc-info-size: 15px;
+  --english-tag-font-size: 0.7rem;
+  --english-frequency-size: 20px;
+  --english-frequency-content-size: 14px;
+
+  /* DICTIONARY & GLOSSARY STYLING
+  ============================================ */
+  /* Colorizer Settings */
+  --english-dictionary-colorizer: 0; /* "1" to enable Dictionary Colorizer */
+  --english-dict-bg-enabled: 1; /* "0" to disable bg color */
+  --english-dict-back-bg: 0; /* "1" to enable bg on entire card */
+  --english-dict-bg-opacity: 0.03; /* Opacity of the bg color */
+  --english-dict-border-width: 5px; /* Width of colored border */
+
+  /* Dictionary Title Styles */
+  --english-dict-size: 0.5rem;
+  --english-dict-display: inline-block;
+  --english-light-dict-color: rgba(0, 0, 0, 0.4);
+  --english-dict-color-dark: rgba(255, 255, 255, 0.4);
+
+  /* Collapse Settings */
+  --english-dictionary-collapse: 0; /* "1" to enable */
+  --english-dictionary-max-height: 390px; /* Max height before collapse */
+
+  /* Jitendex Settings */
+  --english-jitendex-hide-examples: 0; /* Hide Example Sentences */
+  --english-jitendex-hide-info-gloss: 0; /* Hide Explanations */
+  --english-jitendex-hide-xref: 0; /* Hide Cross References */
+  --english-jitendex-hide-graphic: 0; /* Hide Graphics/Images */
+  --english-jitendex-hide-notes: 0; /* Hide Sense Notes */
+  --english-jitendex-hide-antonyms: 0; /* Hide Antonyms */
+  --english-jitendex-hide-forms: 1; /* Hide Forms */
+  --english-jitendex-hide-attribution: 1; /* Hide Attribution */
+
+  /* PITCH ACCENT SETTINGS
+  ============================================ */
+  --english-pitch-style: default; /* "alt" to color the entire word + reading instead of only the downstep */
+  --english-pitch-colors: false; /* "false" to disable pitch downstep coloring */
+  --english-sentence-pitch-highlight: false; /* "true" to make pitch colors overwrite sentence highlights */
+  --english-only-kana-pitch-size: 0.08em; /* Border thickness for kana-only words */
+  --english-pitch-line-clearance: 0.18em; /* Space between the pitch line and kana */
+
+  /* KANJI HOVER SETTINGS
+  ============================================ */
+  --english-enable-kanji-hover: false; /* Enable Kanji Hover */
+  --english-kanji-hover-sentence-visibility: 1; /* "0" to hide kanji hover sentences */
+  --english-kanji-hover-auto-quote: true; /* Wrap the example sentences in quotation marks */
+  --english-kanji-hover-word-font: var(
+    --english-serif
+  ); /* Select the font style for the word */
+  --english-kanji-hover-word-size: 1rem; /* Adjust the scale of the word */
+  --english-kanji-hover-word-reading-size: 0.65rem; /* Adjust the scale of the reading */
+
+  /* Pitch Accent Options */
+  --english-kanji-hover-pitch-colors: true; /* "false" to disable pitch downstep coloring in Kanji Hover */
+  --english-kanji-hover-pitch-highlight: true; /* "false" to make pitch colors stop overwriting word + sentence highlights in Kanji Hover */
+
+  /* RESPONSIVE GRID CONTROL
+  ============================================ */
+  /* Global Grid Settings */
+  --english-grid-gap: var(--english-spacing-xl);
+  --english-grid-column-min-width: 390px;
+
+  /* Default Layout (> 1050px) */
+  --english-grid-order: 1; /* "2" to flip grid horizontally */
+  --english-vertical-grid-order: 0; /* "1" to enable,  "2" to flip vertically */
+
+  /* Large Screens */
+  --english-horizontal-grid-large: 1; /* "0" to disable, "2" to flip horizontally */
+  --english-vertical-grid-large: 0; /* "1" to enable,  "2" to flip vertically */
+
+  /* Medium Screens */
+  --english-horizontal-grid-medium: 1; /* "0" to disable, "2" to flip horizontally */
+  --english-vertical-grid-medium: 0; /* "1" to enable,  "2" to flip vertically */
+
+  /* Small Screens */
+  --english-horizontal-grid-small: 0; /* "1" to enable,  "2" to flip horizontally */
+  --english-vertical-grid-small: 1; /* "0" to disable, "2" to flip vertically */
+
+  /* ==================================================================================
+     Note: You cannot enable the horizontal grid while the vertical grid is enabled.
+  ================================================================================== */
+
+  /* BACKDROP LAYOUT
+  ============================================ */
+  --english-enable-backdrop-layout: 0; /* "1" to enable backdrop layout */
+
+  /* Offsets */
+  --english-bd-card-bg-front-offset: 55px;
+  --english-bd-word-bg-front-offset: 119px;
+
+  /* Front Side Word Alignment */
+  --english-enable-custom-offsets: 0; /* "1" to enable manual overrides to align the front word with the back side */
+  --english-bd-word-bg-front-offset-1050: 5.45rem; /* Front word offset for Word BG mode at 1050px max width */
+  --english-bd-card-bg-front-offset-1050: 2.8rem; /* Front word offset for Card BG mode at 1050px max width */
+  --english-bd-word-bg-front-offset-mobile: 11.5rem; /* Front word offset for Word BG mode on mobile devices */
+
+  /* Mode */
+  --english-backdrop-style: 1; /* "0" to Card BG, "1" to Word BG */
+
+  /* Image Height */
+  --english-backdrop-dynamic-height: 0; /* "1" to enable Dynamic Height */
+  --english-backdrop-background-height: 250px;
+
+  /* Word Background Box */
+  --english-word-background-box: 0; /* "1" to enable background box behind text */
+
+  /* Image Opacity */
+  --english-backdrop-opacity: 0.5;
+
+  /* Fade Gradients */
+  --english-card-background-fade: 1; /* "0" to disable */
+  --english-word-background-fade: 0; /* "1" to enable */
+  --english-card-fade-strength: 50%;
+  --english-word-fade-strength: 60%;
+
+  /* Text Shadows */
+  --english-bd-text-shadow-opacity-light: 0.6;
+  --english-bd-text-shadow-opacity: 0.6;
+  --english-bd-text-shadow-color-light: 255, 255, 255;
+  --english-bd-text-shadow-color: 0, 0, 0;
+
+  /* CUSTOM SHORTCUTS
+  ============================================ */
+  --english-toggle-settings-key: p; /* Set the key to toggle settings */
+  --english-scene-replay-shortcut-key: w; /* Set the key to replay active scene */
+  --english-toggle-custom-dark-mode-key: c; /* Set the key to toggle custom dark mode */
+  --english-toggle-picture-lightbox-key: q; /* Set the key to toggle lightbox */
+  --english-toggle-picture-lightbox-grid-key: shift + q; /* Set the key to toggle lightbox grid */
+  --english-toggle-image-key: l; /* Set the key to show or hide the image */
+
+  /* COLOR PALETTE
+  ============================================ */
+  /* Canonical Nord defaults. Keep synchronized with the editable palette in
+     style.css so Reset never switches the card back to a generic palette. */
+  /* Light Theme
+  -------------------------------------------- */
+  /* Text Colors */
+  --english-text-light: #2e3440;
+  --english-light-devoiced-color: #5e81ac;
+  --english-light-highlight: #5e81ac;
+  --english-freq-text-light: rgba(59, 66, 82, 0.55);
+  --english-freq-text-hover-light: #2e3440;
+  --english-tag-color-light: #4c566a;
+  --english-tag-color-hover-light: #2e3440;
+  --english-misc-info-text-light: #4c566a;
+  --english-misc-info-text-hover-light: #2e3440;
+
+  /* Pitch Colors */
+  --english-pitch-red-light: #bf616a;
+  --english-pitch-blue-light: #5e81ac;
+  --english-pitch-orange-light: #d08770;
+  --english-pitch-green-light: #a3be8c;
+  --english-pitch-purple-light: #b48ead;
+
+  /* Icon Colors */
+  --english-svg-color-light: #4c566a;
+  --english-svg-hover-light: #2e3440;
+
+  /* Background Colors */
+  --english-background-light: #eceff4;
+  --english-card-bg-light: #e5e9f0;
+  --english-card-shadow-light: rgba(46, 52, 64, 0.18);
+  --english-word-bg-light: #e5e9f0;
+  --english-pitch-position-bg-light: #d8dee9;
+  --english-picture-bg-light: #e5e9f0;
+  --english-notes-bg-light: #e5e9f0;
+  --english-definition-bg-light: #e5e9f0;
+  --english-dictionary-collapse-fade-light: linear-gradient(
+    to bottom,
+    rgba(229, 233, 240, 0),
+    rgba(229, 233, 240, 0.96)
+  );
+  --english-buttons-bg-light: #e5e9f0;
+  --english-buttons-bg-hover-light: #d8dee9;
+  --english-lightbox-bg-light: rgba(46, 52, 64, 0.92);
+  --english-frequency-bg-light: #e5e9f0;
+  --english-tag-bg-light: #d8dee9;
+  --english-tag-bg-hover-light: #e5e9f0;
+  --english-external-links-bg-light: #d8dee9;
+  --english-external-links-bg-hover-light: #e5e9f0;
+  --english-misc-info-bg-light: #e5e9f0;
+  --english-misc-info-bg-hover-light: #d8dee9;
+
+  /* Dark Theme
+  -------------------------------------------- */
+  /* Text Colors */
+  --english-text: #eceff4;
+  --english-dark-devoiced-color: #81a1c1;
+  --english-dark-highlight: #88c0d0;
+  --english-freq-text: rgba(216, 222, 233, 0.55);
+  --english-freq-text-hover: #eceff4;
+  --english-tag-color: #d8dee9;
+  --english-tag-color-hover: #eceff4;
+  --english-misc-info-text: #d8dee9;
+  --english-misc-info-text-hover: #eceff4;
+
+  /* Pitch Colors */
+  --english-pitch-red: #bf616a;
+  --english-pitch-blue: #81a1c1;
+  --english-pitch-orange: #d08770;
+  --english-pitch-green: #a3be8c;
+  --english-pitch-purple: #b48ead;
+
+  /* Icon Colors */
+  --english-svg-color: #d8dee9;
+  --english-svg-hover: #eceff4;
+
+  /* Background Colors */
+  --english-background: #2e3440;
+  --english-card-bg: #3b4252;
+  --english-card-shadow: rgba(46, 52, 64, 0.55);
+  --english-word-bg: #2e3440;
+  --english-pitch-position-bg: #434c5e;
+  --english-picture-bg: #2e3440;
+  --english-notes-bg: #3b4252;
+  --english-definition-bg: #3b4252;
+  --english-dictionary-collapse-fade: linear-gradient(
+    to bottom,
+    rgba(59, 66, 82, 0),
+    rgba(59, 66, 82, 0.96)
+  );
+  --english-buttons-bg: #3b4252;
+  --english-buttons-bg-hover: #434c5e;
+  --english-lightbox-bg: rgba(46, 52, 64, 0.94);
+  --english-frequency-bg: #3b4252;
+  --english-tag-bg: #434c5e;
+  --english-tag-bg-hover: #4c566a;
+  --english-external-links-bg: #3b4252;
+  --english-external-links-bg-hover: #434c5e;
+  --english-misc-info-bg: #3b4252;
+  --english-misc-info-bg-hover: #434c5e;
+
+  /* DIMENSIONS & SPACING
+  ============================================ */
+  /* Spacing Scale */
+  --english-spacing-xs: 2px;
+  --english-spacing-sm: 3px;
+  --english-spacing-ms: 8px;
+  --english-spacing-md: 10px;
+  --english-spacing-lg: 15px;
+  --english-spacing-xl: 20px;
+  --english-spacing-xxl: 24px;
+  --english-spacing-xxml: 27px;
+  --english-spacing-xxxl: 34px;
+  --english-base-padding: 20px;
+
+  /* Border Radius */
+  --english-border-radius-sm: 4px;
+  --english-border-radius-ms: 5px;
+  --english-border-radius-md: 10px;
+  --english-border-radius-lg: 12px;
+  --english-tag-border-radius: 5px;
+
+  /* Dimensions */
+  --english-card-max-width: 800px;
+  --english-front-top-offset: 104px;
+  --english-back-top-offset: 26px;
+
+  /* UI Elements */
+  --english-button-size: 20px;
+  --english-toggle-width-large: 60px;
+  --english-toggle-width-medium: 20px;
+  --english-picture-height: 220px;
+  --english-picture-height-small: 330px; /* Max picture container height */
+  --english-picture-max-height-small: 100%; /* Max picture img height */
+  --english-lightbox-nav-width: 100px;
+  --english-external-links-icon-size: 25px;
+  --english-frequency-max-height: 500px;
+
+  /* Margins & Padding */
+  --english-tag-padding: 5px 10px;
+  --english-tag-margin-top: 5px;
+  --english-tag-margin-bottom: 0;
+  --english-tags-container-gap: 0 5px;
+
+  --english-external-links-padding: 5px 10px;
+  --english-external-links-margin-top: 5px;
+  --english-external-links-margin-bottom: 0;
+
+  /* EFFECTS & ANIMATION
+  ============================================ */
+  /* Transitions */
+  --english-base-transition: 0.3s ease;
+  --english-fast-transition: 0.2s ease;
+
+  /* Shadows */
+  --english-button-shadow: 0 0 5px 2.5px rgba(0, 0, 0, 0.1);
+  --english-button-shadow-dark: 0 0 5px 2.5px rgba(255, 255, 255, 0.1);
+  --english-lightbox-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
+
+  /* Z-Index Layers */
+  --english-z-index-base: 3;
+  --english-z-index-toggle: 2;
+  --english-z-index-lightbox: 1000;
+}

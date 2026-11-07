@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.test-pages/
+test-image*.svg
+preview-*.png
+backups/
+*.anki2
+*.apkg
+*.colpkg
+original-*.json
+reference-*.json

@@ -1,0 +1,4406 @@
+var senren_englishConfig = {};
+
+  // Helper functions for shortcuts
+  window.english_parseKeyConfig = function (configStr) {
+    if (!configStr) return null;
+    const parts = configStr
+      .toLowerCase()
+      .split(/[\s+]+/)
+      .filter((p) => p);
+    if (parts.length === 0) return null;
+
+    const key = parts.pop();
+    return {
+      key: key,
+      ctrl: parts.includes("ctrl") || parts.includes("control"),
+      alt: parts.includes("alt"),
+      shift: parts.includes("shift"),
+      meta: parts.includes("meta") || parts.includes("cmd"),
+    };
+  };
+
+  window.english_isKeyMatch = function (event, config) {
+    if (!config) return false;
+    return (
+      event.key.toLowerCase() === config.key &&
+      event.ctrlKey === config.ctrl &&
+      event.altKey === config.alt &&
+      event.shiftKey === config.shift &&
+      event.metaKey === config.meta
+    );
+  };
+
+  // Theme toggle
+  function darkMode() {
+    if (!window.SenrenEnglishTheme) return;
+    const button = document.querySelector(".toggle-custom-dark-mode");
+    window.SenrenEnglishTheme.apply();
+
+    if (button && !button.dataset.hasClickListener) {
+      button.addEventListener("click", () => {
+        window.SenrenEnglishTheme.cycle();
+      });
+      button.dataset.hasClickListener = "true";
+    }
+  }
+
+  // Collect images from the glossary and add them to the picture container
+  function collectGlossaryImages(deferred = false) {
+    if (senren_englishConfig.collectGlossaryImages !== "true") return;
+
+    const pictureContainer = english_ELS.pictureContainer;
+    if (
+      !pictureContainer ||
+      pictureContainer.dataset.senren_englishGlossaryCollectionDone === "true"
+    ) {
+      return;
+    }
+
+    const glossaryItems = document.querySelectorAll(
+      "#glossary img, #definition img",
+    );
+    let maxImages = parseInt(senren_englishConfig.collectGlossaryImagesMax, 10);
+    if (Number.isNaN(maxImages) || maxImages < 0) maxImages = 0;
+    let minDim = parseInt(senren_englishConfig.collectGlossaryImagesMinDim, 10);
+    if (Number.isNaN(minDim) || minDim < 0) minDim = 0;
+    let minArea = parseInt(senren_englishConfig.collectGlossaryImagesMinArea, 10);
+    if (Number.isNaN(minArea) || minArea < 0) minArea = 0;
+
+    if (!glossaryItems.length) return;
+
+    const processedSrcs =
+      pictureContainer._senren_englishGlossaryProcessedSrcs ||
+      (pictureContainer._senren_englishGlossaryProcessedSrcs = new Set());
+
+    if (
+      !deferred &&
+      pictureContainer.querySelector("img:not(.senren_english-filtered-image)")
+    ) {
+      return;
+    }
+
+    const existingSrcs = new Set(
+      Array.from(pictureContainer.querySelectorAll("img")).map(
+        (img) => img.src,
+      ),
+    );
+    let scheduledCount = existingSrcs.size;
+    if (maxImages > 0 && scheduledCount >= maxImages) {
+      pictureContainer.dataset.senren_englishGlossaryCollectionDone = "true";
+      return;
+    }
+
+    glossaryItems.forEach((img) => {
+      if (maxImages > 0 && scheduledCount >= maxImages) return;
+      const src = img.currentSrc || img.src;
+      if (!src || existingSrcs.has(src) || processedSrcs.has(src)) return;
+
+      if (
+        src === window.location.href ||
+        src.toLowerCase().endsWith(".svg") ||
+        img.closest('span[data-sc-pixiv="read-more-link"] a') ||
+        img.closest(
+          '[data-dictionary*="漢字でGo!"], [data-dictionary*="現代国語例解辞典"]',
+        )
+      ) {
+        processedSrcs.add(src);
+        return;
+      }
+
+      existingSrcs.add(src);
+      processedSrcs.add(src);
+      scheduledCount += 1;
+
+      const newImg = new Image();
+      newImg.decoding = "async";
+      newImg.fetchPriority = "low";
+      newImg.loading = "lazy";
+      newImg.src = src;
+
+      newImg.onload = () => {
+        const w = newImg.naturalWidth;
+        const h = newImg.naturalHeight;
+        const aspectRatio = w / h;
+
+        // Skip small icons and badge-shaped images (e.g. 派生語 tags)
+        if (w < 80 || h < 80 || aspectRatio > 2.2 || aspectRatio < 0.4) return;
+        if (minDim > 0 && (w < minDim || h < minDim)) return;
+        if (minArea > 0 && w * h < minArea) return;
+
+        const finalAspectRatio = aspectRatio;
+
+        if (
+          w >= 120 &&
+          h >= 180 &&
+          finalAspectRatio >= 0.7 &&
+          finalAspectRatio <= 1.6
+        ) {
+          newImg.classList.add("tappable");
+        }
+
+        pictureContainer.appendChild(newImg);
+      };
+    });
+
+    pictureContainer.dataset.senren_englishGlossaryCollectionDone = "true";
+  }
+
+  // Quick filter to hide tiny dash/icon images before they flash on screen
+  function prefilterTinyImages() {
+    const back = english_ELS.back;
+    const pictureContainer = english_ELS.pictureContainer;
+    if (!pictureContainer) {
+      if (back) back.classList.add("images-ready");
+      return;
+    }
+
+    const images = Array.from(pictureContainer.querySelectorAll("img"));
+    if (!images.length) {
+      if (back) back.classList.add("images-ready");
+      return;
+    }
+
+    const isTinyByDimensions = (w, h) => {
+      if (!w || !h) return false;
+      return h <= 24 || w <= 24 || (w <= 32 && h <= 32);
+    };
+
+    const refreshScenes = () => {
+      if (typeof window.senren_englishRefreshScenes === "function") {
+        window.senren_englishRefreshScenes();
+      }
+    };
+
+    images.forEach((img) => {
+      const applyFilter = () => {
+        if (img.classList.contains("senren_english-filtered-image")) {
+          img.style.setProperty("display", "none", "important");
+          img.style.visibility = "";
+          return;
+        }
+
+        if (isTinyByDimensions(img.naturalWidth, img.naturalHeight)) {
+          img.classList.add("senren_english-filtered-image");
+          img.style.setProperty("display", "none", "important");
+          refreshScenes();
+        }
+
+        img.style.visibility = "";
+      };
+
+      if (img.complete) {
+        applyFilter();
+      } else {
+        img.style.visibility = "hidden";
+
+        const onDone = () => {
+          applyFilter();
+          img.removeEventListener("load", onDone);
+          img.removeEventListener("error", onDone);
+        };
+
+        img.addEventListener("load", onDone);
+        img.addEventListener("error", onDone);
+      }
+    });
+
+    if (back) back.classList.add("images-ready");
+  }
+
+  // Manages cycling between Selection Text, Definition, and Glossary
+  function toggleDefinition() {
+    const toggleAreas = document.querySelectorAll(
+      ".toggle-area:not(#notes .toggle-area)",
+    );
+    const selectionText = english_ELS.selectionText;
+    const definition = english_ELS.definition;
+    const glossary = english_ELS.glossary;
+    const allGlossaryListItems = [
+      ...document.querySelectorAll(
+        "#glossary .glossary-box li[data-dictionary], #glossary > div > span > div > i",
+      ),
+      ...document.querySelectorAll(
+        '#glossary div[style*="margin-bottom: 12px"][style*="display: flex"]',
+      ),
+    ];
+    const dictionaryPreference =
+      document.getElementById("dictionaryPreference")?.textContent.trim() || "";
+
+    function updateBackgroundColor(element) {
+      const backDiv = document.querySelector(".back");
+      if (!backDiv || !element) return;
+
+      const computed = getComputedStyle(element);
+      const color = computed.getPropertyValue("--english-dict-color").trim();
+      const rgb = computed.getPropertyValue("--english-dict-color-rgb").trim();
+
+      if (color) backDiv.style.setProperty("--english-dict-color", color);
+      if (rgb) backDiv.style.setProperty("--english-dict-color-rgb", rgb);
+    }
+
+    function getDictionaryName(element) {
+      if (element.tagName === "LI" && element.hasAttribute("data-dictionary")) {
+        return element.getAttribute("data-dictionary");
+      }
+      return null;
+    }
+
+    const hasSelectionText =
+      !!selectionText && selectionText.textContent.trim() !== "";
+    const hasDefinition = !!definition && definition.textContent.trim() !== "";
+    let definitionDictName = null;
+
+    if (hasDefinition) {
+      const definitionLi = definition.querySelector(
+        ".definition-box li[data-dictionary]",
+      );
+      if (definitionLi) {
+        definitionDictName = definitionLi.getAttribute("data-dictionary");
+      }
+    }
+
+    const visibleGlossaryItems = allGlossaryListItems.filter((li) => {
+      const parentDiv = li.closest("div");
+      if (parentDiv && parentDiv.classList.contains("ignore")) {
+        return false;
+      }
+
+      if (hasDefinition && definitionDictName) {
+        const glossaryDictName = getDictionaryName(li);
+        if (glossaryDictName && glossaryDictName === definitionDictName) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (!visibleGlossaryItems.length && glossary?.querySelector('.glossary-box')?.textContent.trim()) {
+      visibleGlossaryItems.push(glossary.querySelector('.glossary-box > span'));
+    }
+    const currentVisibleItems = [];
+    if (hasSelectionText)
+      currentVisibleItems.push({
+        type: "selectionText",
+        element: selectionText,
+        container: selectionText,
+      });
+    if (hasDefinition) {
+      const defLi = definition.querySelector(
+        ".definition-box li[data-dictionary]",
+      );
+      currentVisibleItems.push({
+        type: "definition",
+        element: defLi || definition,
+        container: definition,
+      });
+    }
+
+    if (visibleGlossaryItems.length > 0) {
+      visibleGlossaryItems.forEach((li) => {
+        currentVisibleItems.push({
+          type: "glossary",
+          element: li,
+          container: glossary,
+        });
+      });
+    }
+
+    const totalVisibleItemsCount = currentVisibleItems.length;
+
+    toggleAreas.forEach((area) => {
+      if (totalVisibleItemsCount <= 1) {
+        area.style.display = "none";
+      } else {
+        area.style.display = "";
+      }
+    });
+
+    function updateCounters(activeIndex) {
+      const counterText =
+        totalVisibleItemsCount > 0
+          ? `${activeIndex + 1} / ${totalVisibleItemsCount}`
+          : "";
+
+      [selectionText, definition, glossary].forEach((container) => {
+        if (container) {
+          const counterDiv = container.querySelector(".dictionary-counter");
+          if (counterDiv) {
+            counterDiv.textContent = "";
+          }
+        }
+      });
+
+      if (activeIndex !== -1 && totalVisibleItemsCount > 0) {
+        const activeItem = currentVisibleItems[activeIndex];
+        if (activeItem && activeItem.container) {
+          const activeCounterDiv = activeItem.container.querySelector(
+            ".dictionary-counter",
+          );
+          if (activeCounterDiv) {
+            activeCounterDiv.textContent = counterText;
+          }
+        }
+      }
+    }
+
+    function getCurrentIndex() {
+      let activeIndex = -1;
+      if (selectionText && selectionText.classList.contains("show")) {
+        activeIndex = currentVisibleItems.findIndex(
+          (item) => item.type === "selectionText",
+        );
+      } else if (definition && definition.classList.contains("show")) {
+        activeIndex = currentVisibleItems.findIndex(
+          (item) => item.type === "definition",
+        );
+      } else if (glossary && glossary.classList.contains("show")) {
+        const currentGlossaryLi = visibleGlossaryItems.find(
+          (li) => li.style.display === "block",
+        );
+        if (currentGlossaryLi) {
+          activeIndex = currentVisibleItems.findIndex(
+            (item) =>
+              item.type === "glossary" && item.element === currentGlossaryLi,
+          );
+        } else if (
+          currentVisibleItems.some((item) => item.type === "glossary")
+        ) {
+          activeIndex = currentVisibleItems.findIndex(
+            (item) => item.type === "glossary",
+          );
+        }
+      }
+      return activeIndex;
+    }
+
+    function getDictionaryMap() {
+      const map = new Map();
+      allGlossaryListItems.forEach((li) => {
+        const dictionaryName = getDictionaryName(li);
+        if (dictionaryName) {
+          map.set(dictionaryName, li);
+        }
+      });
+      return map;
+    }
+
+
+    // Preserve the English template's dictionary/POS/entry-number preference syntax.
+    const posTagEl = document.querySelector('.english-pos');
+    const defaultPosText = posTagEl?.textContent || '';
+        function normalizeText(text) {
+          return (text || "")
+            .replace(/\u00A0/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+
+        var posPatterns = [
+          { label: "phrasal verb", pattern: /phrasal\s*verb/gi },
+          { label: "auxiliary verb", pattern: /auxiliary\s*verb/gi },
+          { label: "modal verb", pattern: /modal\s*verb/gi },
+          { label: "intransitive verb", pattern: /intransitive(?:\s*verb)?/gi },
+          { label: "transitive verb", pattern: /transitive(?:\s*verb)?/gi },
+          { label: "proper noun", pattern: /proper\s*noun/gi },
+          { label: "uncountable noun", pattern: /uncountable\s*noun/gi },
+          { label: "countable noun", pattern: /countable\s*noun/gi },
+          { label: "adjective", pattern: /adjective/gi },
+          { label: "adverb", pattern: /adverb/gi },
+          { label: "preposition", pattern: /preposition/gi },
+          { label: "conjunction", pattern: /conjunction/gi },
+          { label: "interjection", pattern: /interjection/gi },
+          { label: "pronoun", pattern: /pronoun/gi },
+          { label: "determiner", pattern: /determiner/gi },
+          { label: "article", pattern: /article/gi },
+          { label: "numeral", pattern: /numeral/gi },
+          { label: "particle", pattern: /particle/gi },
+          { label: "prefix", pattern: /prefix/gi },
+          { label: "suffix", pattern: /suffix/gi },
+          { label: "abbreviation", pattern: /abbreviation/gi },
+          { label: "proverb", pattern: /proverb/gi },
+          { label: "phrase", pattern: /phrase/gi },
+          { label: "idiom", pattern: /idiom/gi },
+          { label: "noun", pattern: /noun/gi },
+          { label: "verb", pattern: /verb/gi },
+        ];
+
+        var compactPosMap = {
+          n: "noun",
+          noun: "noun",
+          "n-pr": "proper noun",
+          v: "verb",
+          verb: "verb",
+          vi: "intransitive verb",
+          vt: "transitive verb",
+          v1: "verb",
+          v5: "verb",
+          vk: "verb",
+          vs: "verb",
+          vz: "verb",
+          adj: "adjective",
+          "adj-i": "adjective",
+          adjective: "adjective",
+          adv: "adverb",
+          adverb: "adverb",
+          prep: "preposition",
+          preposition: "preposition",
+          conj: "conjunction",
+          conjunction: "conjunction",
+          interj: "interjection",
+          interjection: "interjection",
+          pron: "pronoun",
+          pronoun: "pronoun",
+          det: "determiner",
+          determiner: "determiner",
+          article: "article",
+          numeral: "numeral",
+          particle: "particle",
+          prefix: "prefix",
+          suffix: "suffix",
+          phrase: "phrase",
+          idiom: "idiom",
+          phrasal: "phrasal verb",
+          auxiliary: "auxiliary verb",
+          modal: "modal verb",
+          transitive: "transitive verb",
+          intransitive: "intransitive verb",
+          countable: "countable noun",
+          uncountable: "uncountable noun",
+        };
+
+        function collectPartsOfSpeech(text) {
+          var normalized = normalizeText(text);
+          if (!normalized) return [];
+
+          var lower = normalized.toLowerCase();
+          var matches = [];
+
+          function overlapsExisting(start, end) {
+            for (var i = 0; i < matches.length; i++) {
+              if (start < matches[i].end && end > matches[i].start) {
+                return true;
+              }
+            }
+            return false;
+          }
+
+          function addMatch(label, start, length) {
+            if (!label || start < 0 || length < 1) return;
+            var end = start + length;
+            if (overlapsExisting(start, end)) return;
+            matches.push({ label: label, start: start, end: end });
+          }
+
+          // Long labels are checked before their generic noun/verb substrings.
+          // This also recovers old malformed fields such as
+          // "VerbPhrasal verbNoun," without scanning definition prose.
+          for (var i = 0; i < posPatterns.length; i++) {
+            var definition = posPatterns[i];
+            definition.pattern.lastIndex = 0;
+            var match;
+            while ((match = definition.pattern.exec(lower)) !== null) {
+              addMatch(definition.label, match.index, match[0].length);
+              if (match[0].length === 0) {
+                definition.pattern.lastIndex += 1;
+              }
+            }
+          }
+
+          // Compact dictionary/Yomitan codes are only accepted as complete
+          // delimiter-separated tokens, so dictionary names cannot become POS.
+          var compactSource = lower.replace(/[()[\]{}]/g, " ");
+          var compactTokens = compactSource.split(/[,;/|]+/);
+          for (var t = 0; t < compactTokens.length; t++) {
+            var rawToken = normalizeText(compactTokens[t]);
+            var compactLabel = compactPosMap[rawToken];
+            if (!compactLabel) continue;
+            var tokenIndex = lower.indexOf(rawToken);
+            addMatch(compactLabel, tokenIndex, rawToken.length);
+          }
+
+          matches.sort(function (a, b) {
+            return a.start - b.start || b.end - b.start - (a.end - a.start);
+          });
+
+          var seen = {};
+          var result = [];
+          for (var m = 0; m < matches.length; m++) {
+            var label = matches[m].label;
+            if (seen[label]) continue;
+            seen[label] = true;
+            result.push(label);
+          }
+          return result;
+        }
+
+        function collectPartsOfSpeechFromItem(item) {
+          if (!item) return [];
+          return collectPartsOfSpeech(getItemHeaderText(item));
+        }
+
+        function formatPos(parts) {
+          if (!parts || parts.length === 0) return "";
+          var upper = [];
+          for (var i = 0; i < parts.length; i++) {
+            upper.push(parts[i].toUpperCase());
+          }
+          return upper.join(", ");
+        }
+
+        function collectAllPartsOfSpeech(itemList) {
+          var merged = [];
+          var seen = {};
+
+          function addParts(parts) {
+            for (var i = 0; i < parts.length; i++) {
+              var part = parts[i];
+              if (!part || seen[part]) continue;
+              seen[part] = true;
+              merged.push(part);
+            }
+          }
+
+          for (var i = 0; i < itemList.length; i++) {
+            addParts(collectPartsOfSpeechFromItem(itemList[i]));
+          }
+
+          // Yomitan's field can contain classes not repeated in every
+          // dictionary header. It is also the fallback for sparse glossaries.
+          addParts(collectPartsOfSpeech(defaultPosText));
+
+          return merged;
+        }
+
+        function updatePosTag(itemList) {
+          if (!posTagEl) return;
+
+          var parts = collectAllPartsOfSpeech(itemList || []);
+          var posText = formatPos(parts);
+
+          if (!posText) {
+            posTagEl.style.display = "none";
+            return;
+          }
+
+          posTagEl.textContent = posText;
+          posTagEl.style.display = "inline-block";
+        }
+
+        var preferenceEl = document.getElementById("dictionaryPreference");
+        var preferenceRaw = preferenceEl ? preferenceEl.textContent.trim() : "";
+
+        function normalizeDictionaryName(name) {
+          return (name || "")
+            .toLowerCase()
+            .replace(/rev\.[^\s)]+/g, "")
+            .replace(/[()]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+
+        function normalizePreferenceToken(token) {
+          return normalizeText(token)
+            .toLowerCase()
+            .replace(/^['"`]+|['"`]+$/g, "")
+            .trim();
+        }
+
+        var preferencePosMap = {
+          n: "noun",
+          noun: "noun",
+          v: "verb",
+          verb: "verb",
+          adj: "adjective",
+          adjective: "adjective",
+          adv: "adverb",
+          adverb: "adverb",
+          prep: "preposition",
+          preposition: "preposition",
+          conj: "conjunction",
+          conjunction: "conjunction",
+          interj: "interjection",
+          interjection: "interjection",
+          pron: "pronoun",
+          pronoun: "pronoun",
+          det: "determiner",
+          determiner: "determiner",
+          phrase: "phrase",
+          idiom: "idiom",
+          "phrasal verb": "phrasal verb",
+          "auxiliary verb": "auxiliary verb",
+          "modal verb": "modal verb",
+          "transitive verb": "transitive verb",
+          "intransitive verb": "intransitive verb",
+        };
+
+        function normalizePosToken(token) {
+          var normalized = normalizePreferenceToken(token).replace(/\./g, "");
+          return preferencePosMap[normalized] || "";
+        }
+
+        function parsePreferenceEntry(rawEntry) {
+          var source = normalizeText(rawEntry);
+          if (!source) return null;
+
+          var parts = source
+            .split(",")
+            .map(function (part) {
+              return normalizeText(part);
+            })
+            .filter(function (part) {
+              return part.length > 0;
+            });
+
+          if (parts.length === 0) return null;
+
+          var entry = {
+            raw: source,
+            dictionary: "",
+            pos: "",
+            senseIndex: 0,
+            tokens: [],
+          };
+
+          var nonPosTokens = [];
+
+          for (var i = 0; i < parts.length; i++) {
+            var part = parts[i];
+            var asPos = normalizePosToken(part);
+            var asIndex = part.match(/^#?(\d+)$/);
+
+            if (!entry.senseIndex && asIndex) {
+              entry.senseIndex = parseInt(asIndex[1], 10) || 0;
+              continue;
+            }
+
+            if (!entry.pos && asPos) {
+              entry.pos = asPos;
+              continue;
+            }
+
+            nonPosTokens.push(part);
+          }
+
+          if (nonPosTokens.length > 0) {
+            // For tuple-like preference with POS/index qualifiers,
+            // treat the last non-POS token as dictionary name.
+            if ((entry.pos || entry.senseIndex > 0) && nonPosTokens.length > 1) {
+              entry.dictionary = nonPosTokens[nonPosTokens.length - 1];
+            } else {
+              entry.dictionary = nonPosTokens.join(", ");
+            }
+          }
+
+          entry.tokens = parts.map(normalizePreferenceToken).filter(function (t) {
+            return t.length > 0;
+          });
+
+          // Single token can still be POS-only (e.g. "adjective")
+          if (!entry.dictionary && !entry.pos && parts.length === 1) {
+            var singlePos = normalizePosToken(parts[0]);
+            if (singlePos) {
+              entry.pos = singlePos;
+            } else {
+              entry.dictionary = parts[0];
+            }
+          }
+
+          if (!entry.dictionary && !entry.pos) {
+            return null;
+          }
+
+          return entry;
+        }
+
+        function parsePreferenceEntries(rawText) {
+          var text = rawText || "";
+          if (!text) return [];
+
+          var entries = [];
+
+          // Treat parenthesized blocks as one logical preference entry.
+          var tupleRegex = /\(([^()]+)\)/g;
+          var tupleMatch;
+          while ((tupleMatch = tupleRegex.exec(text)) !== null) {
+            var tupleEntry = parsePreferenceEntry(tupleMatch[1]);
+            if (tupleEntry) entries.push(tupleEntry);
+          }
+
+          // Remaining plain entries support old dictionary-only style.
+          var remainder = text.replace(tupleRegex, " ");
+          var plainParts = remainder.split(/[\n,;|]/);
+          for (var i = 0; i < plainParts.length; i++) {
+            var plainEntry = parsePreferenceEntry(plainParts[i]);
+            if (plainEntry) entries.push(plainEntry);
+          }
+
+          return entries;
+        }
+
+        var preferenceEntries = parsePreferenceEntries(preferenceRaw);
+
+        function getDictionaryName(item) {
+          if (!item) return "";
+
+          var dictionaryAttr = item.getAttribute("data-dictionary");
+          if (dictionaryAttr) {
+            return dictionaryAttr.trim();
+          }
+
+          var firstChild = item.firstElementChild;
+          if (
+            firstChild &&
+            /^(I|EM|STRONG|B)$/i.test(firstChild.tagName) &&
+            firstChild.textContent
+          ) {
+            var label = firstChild.textContent.trim();
+            if (label) return label;
+          }
+
+          var text = item.textContent ? item.textContent.trim() : "";
+          var parenthesizedName = text.match(/\(([^()]{2,100})\)/);
+          if (parenthesizedName && parenthesizedName[1]) {
+            return parenthesizedName[1].trim();
+          }
+
+          return "";
+        }
+
+        function matchesPreference(dictionaryName, preferenceName) {
+          var normalizedDictionary = normalizeDictionaryName(dictionaryName);
+          var normalizedPreference = normalizeDictionaryName(preferenceName);
+
+          if (!normalizedDictionary || !normalizedPreference) {
+            return false;
+          }
+
+          return (
+            normalizedDictionary === normalizedPreference ||
+            normalizedDictionary.indexOf(normalizedPreference) !== -1 ||
+            normalizedPreference.indexOf(normalizedDictionary) !== -1
+          );
+        }
+
+        function getItemHeaderText(item) {
+          if (!item) return "";
+
+          var children = item.children || [];
+          for (var i = 0; i < children.length && i < 3; i++) {
+            var child = children[i];
+            if (child.classList.contains("dictionary-title")) continue;
+            if (
+              /^(I|EM|STRONG|B)$/i.test(child.tagName) &&
+              child.textContent
+            ) {
+              return normalizeText(child.textContent);
+            }
+            if (child.tagName !== "STYLE") break;
+          }
+
+          var explicitHeader = item.querySelector(
+            '[data-sc-content="definition-tags"], [data-sc-content="part-of-speech"]',
+          );
+          return explicitHeader
+            ? normalizeText(explicitHeader.textContent)
+            : "";
+        }
+
+        function matchesPreferenceEntry(item, entry) {
+          if (!item || !entry) return false;
+
+          var dictionaryName = getDictionaryName(item);
+          var dictionaryNormalized = normalizeDictionaryName(dictionaryName);
+          var headerText = getItemHeaderText(item);
+          var headerNormalized = normalizeDictionaryName(headerText);
+          var itemPos = collectPartsOfSpeechFromItem(item);
+
+          if (entry.dictionary) {
+            var dictQuery = normalizeDictionaryName(entry.dictionary);
+            var dictMatched =
+              matchesPreference(dictionaryName, entry.dictionary) ||
+              (dictQuery && headerNormalized.indexOf(dictQuery) !== -1);
+            if (!dictMatched) {
+              return false;
+            }
+          }
+
+          if (entry.pos) {
+            var hasPos =
+              itemPos.indexOf(entry.pos) !== -1 ||
+              headerNormalized.indexOf(entry.pos) !== -1;
+            if (!hasPos) {
+              return false;
+            }
+          }
+
+          // Extra tokens in tuple (e.g. frequency tags) must also match the header/dict line.
+          if (entry.tokens && entry.tokens.length > 0) {
+            var haystack = dictionaryNormalized + " " + headerNormalized;
+            for (var i = 0; i < entry.tokens.length; i++) {
+              var token = entry.tokens[i];
+              if (!token) continue;
+
+              var tokenPos = normalizePosToken(token);
+              if (tokenPos) {
+                if (
+                  itemPos.indexOf(tokenPos) === -1 &&
+                  haystack.indexOf(tokenPos) === -1
+                ) {
+                  return false;
+                }
+                continue;
+              }
+
+              if (/^#?\d+$/.test(token)) {
+                continue;
+              }
+
+              if (haystack.indexOf(normalizeDictionaryName(token)) === -1) {
+                return false;
+              }
+            }
+          }
+
+          return true;
+        }
+
+        function pickPreferredItemIndex(itemList, entry) {
+          var matchedIndexes = [];
+          for (var i = 0; i < itemList.length; i++) {
+            if (matchesPreferenceEntry(itemList[i], entry)) {
+              matchedIndexes.push(i);
+            }
+          }
+
+          if (matchedIndexes.length === 0) return -1;
+
+          var pick = 0;
+          if (entry.senseIndex > 0) {
+            pick = entry.senseIndex - 1;
+            if (pick >= matchedIndexes.length) {
+              pick = matchedIndexes.length - 1;
+            }
+          }
+
+          return matchedIndexes[pick];
+        }
+
+        function reorderByPreference(itemList) {
+          if (preferenceEntries.length === 0 || itemList.length < 2) {
+            return itemList;
+          }
+
+          for (var p = 0; p < preferenceEntries.length; p++) {
+            var preferredIndex = pickPreferredItemIndex(
+              itemList,
+              preferenceEntries[p],
+            );
+            if (preferredIndex === -1) continue;
+
+            if (preferredIndex === 0) {
+              return itemList;
+            }
+
+            var reordered = itemList.slice(0);
+            var preferredItem = reordered.splice(preferredIndex, 1)[0];
+              reordered.unshift(preferredItem);
+              return reordered;
+          }
+
+          return itemList;
+        }
+
+
+    updatePosTag(visibleGlossaryItems);
+    let preferredGlossaryItem = null;
+    for (const preference of preferenceEntries) {
+      const index = pickPreferredItemIndex(visibleGlossaryItems, preference);
+      if (index >= 0) { preferredGlossaryItem = visibleGlossaryItems[index]; break; }
+    }
+    let initialIndex = -1;
+
+    allGlossaryListItems.forEach((li) => (li.style.display = "none"));
+    if (selectionText) selectionText.classList.remove("show");
+    if (definition) definition.classList.remove("show");
+    if (glossary) glossary.classList.remove("show");
+
+    if (totalVisibleItemsCount > 0) {
+      const permanentLastSelected = localStorage.getItem(
+        "english_lastSelectedDictionary",
+      );
+      const permanentDictionaryName =
+        localStorage.getItem("english_lastDictionaryName");
+      const dictionaryMap = getDictionaryMap();
+      let initialStateSet = false;
+      if (preferredGlossaryItem) {
+        initialIndex = currentVisibleItems.findIndex(item => item.element === preferredGlossaryItem);
+        preferredGlossaryItem.style.display = 'block';
+        initialStateSet = initialIndex >= 0;
+      }
+
+      if (!initialStateSet) {
+        // Priority 1: Selection Text
+        if (hasSelectionText) {
+          initialIndex = currentVisibleItems.findIndex(
+            (item) => item.type === "selectionText",
+          );
+          if (initialIndex !== -1) {
+            initialStateSet = true;
+          }
+        }
+
+        // Priority 2: Local Storage
+        if (
+          !initialStateSet &&
+          !dictionaryPreference && permanentLastSelected === "glossary" &&
+          visibleGlossaryItems.length > 0
+        ) {
+          let foundDictionaryFromStorage = false;
+          if (
+            permanentDictionaryName &&
+            dictionaryMap.has(permanentDictionaryName)
+          ) {
+            const specificLiElement = dictionaryMap.get(
+              permanentDictionaryName,
+            );
+            if (visibleGlossaryItems.includes(specificLiElement)) {
+              initialIndex = currentVisibleItems.findIndex(
+                (item) =>
+                  item.type === "glossary" &&
+                  item.element === specificLiElement,
+              );
+              if (initialIndex !== -1) {
+                specificLiElement.style.display = "block";
+                foundDictionaryFromStorage = true;
+                initialStateSet = true;
+              }
+            }
+          }
+
+          // fallback
+          if (!foundDictionaryFromStorage) {
+            initialIndex = currentVisibleItems.findIndex(
+              (item) => item.type === "glossary",
+            );
+            if (initialIndex !== -1) {
+              currentVisibleItems[initialIndex].element.style.display = "block";
+              initialStateSet = true;
+            }
+          }
+        }
+
+        // Priority 3: Dictionary Preference
+        if (
+          !initialStateSet &&
+          dictionaryPreference &&
+          visibleGlossaryItems.length > 0
+        ) {
+          const lowerCasePref = dictionaryPreference.toLowerCase();
+
+          if (lowerCasePref === "glossary") {
+            // Preference is "glossary", show the first available one
+            initialIndex = currentVisibleItems.findIndex(
+              (item) => item.type === "glossary",
+            );
+            if (initialIndex !== -1) {
+              currentVisibleItems[initialIndex].element.style.display = "block";
+              initialStateSet = true;
+            }
+          } else {
+            // Preference is a specific dictionary name
+            let preferredLiElement = null;
+
+            for (const [name, li] of dictionaryMap) {
+              if (name.toLowerCase().includes(lowerCasePref)) {
+                preferredLiElement = li;
+                break;
+              }
+            }
+
+            if (
+              preferredLiElement &&
+              visibleGlossaryItems.includes(preferredLiElement)
+            ) {
+              initialIndex = currentVisibleItems.findIndex(
+                (item) =>
+                  item.type === "glossary" &&
+                  item.element === preferredLiElement,
+              );
+              if (initialIndex !== -1) {
+                preferredLiElement.style.display = "block";
+                initialStateSet = true;
+              }
+            }
+          }
+        }
+
+        // Priority 4: Definition
+        if (!initialStateSet && hasDefinition) {
+          initialIndex = currentVisibleItems.findIndex(
+            (item) => item.type === "definition",
+          );
+          if (initialIndex !== -1) {
+            initialStateSet = true;
+          }
+        }
+
+        // Priority 5: Glossary
+        if (!initialStateSet && visibleGlossaryItems.length > 0) {
+          initialIndex = currentVisibleItems.findIndex(
+            (item) => item.type === "glossary",
+          );
+          if (initialIndex !== -1) {
+            currentVisibleItems[initialIndex].element.style.display = "block";
+            initialStateSet = true;
+          }
+        }
+
+        if (!initialStateSet) {
+          if (currentVisibleItems.length > 0) initialIndex = 0;
+        }
+      }
+
+      if (initialIndex !== -1) {
+        const initialItem = currentVisibleItems[initialIndex];
+        if (initialItem.container) {
+          initialItem.container.classList.add("show");
+          // For collapsed dictionary entries 1
+          collapseDictionary(
+            initialItem.container.querySelector(
+              ".definition-box, .glossary-box",
+            ),
+          );
+          // For dictionary colorizer 1
+          updateBackgroundColor(initialItem.element);
+        }
+      }
+    }
+
+    updateCounters(initialIndex);
+
+    const handleToggle = (direction) => {
+      const currentIndex = getCurrentIndex();
+      if (currentIndex === -1 || totalVisibleItemsCount <= 1) return;
+
+      const currentItem = currentVisibleItems[currentIndex];
+      if (
+        currentItem.type === "selectionText" ||
+        currentItem.type === "definition"
+      ) {
+        if (currentItem.container)
+          currentItem.container.classList.remove("show");
+      } else if (currentItem.type === "glossary") {
+        currentItem.element.style.display = "none";
+      }
+
+      let nextIndex;
+      if (direction === "right") {
+        nextIndex = (currentIndex + 1) % totalVisibleItemsCount;
+      } else {
+        nextIndex =
+          (currentIndex - 1 + totalVisibleItemsCount) % totalVisibleItemsCount;
+      }
+
+      const nextItem = currentVisibleItems[nextIndex];
+
+      if (currentItem.type === "glossary" && nextItem.type !== "glossary") {
+        if (currentItem.container)
+          currentItem.container.classList.remove("show");
+      }
+
+      if (nextItem.type === "selectionText" || nextItem.type === "definition") {
+        if (nextItem.container) nextItem.container.classList.add("show");
+      } else if (nextItem.type === "glossary") {
+        if (nextItem.container) nextItem.container.classList.add("show");
+        nextItem.element.style.display = "block";
+      }
+
+      // For collapsed dictionary entries 2
+      collapseDictionary(
+        nextItem.container.querySelector(".definition-box, .glossary-box"),
+      );
+      // For collapsed dictionary colorizer 2
+      updateBackgroundColor(nextItem.element);
+
+      if (nextItem.type === "selectionText") {
+        localStorage.setItem("english_lastSelectedDictionary", "selectionText");
+        localStorage.removeItem("english_lastDictionaryName");
+      } else if (nextItem.type === "definition") {
+        localStorage.setItem("english_lastSelectedDictionary", "definition");
+        localStorage.removeItem("english_lastDictionaryName");
+      } else if (nextItem.type === "glossary") {
+        localStorage.setItem("english_lastSelectedDictionary", "glossary");
+        const dictionaryName = getDictionaryName(nextItem.element);
+        if (dictionaryName) {
+          localStorage.setItem("english_lastDictionaryName", dictionaryName);
+        } else {
+          localStorage.removeItem("english_lastDictionaryName");
+        }
+      }
+
+      updateCounters(nextIndex);
+
+      const backElement = document.querySelector(".back");
+      if (backElement && !backElement.classList.contains("dict-toggled-once")) {
+        backElement.classList.add("dict-toggled-once");
+      }
+    };
+
+    toggleAreas.forEach((area) => {
+      area.onclick = (e) => {
+        if (totalVisibleItemsCount <= 1) return;
+        if (
+          area.classList.contains("right") ||
+          area.classList.contains("right-larger")
+        ) {
+          handleToggle("right");
+        } else if (
+          area.classList.contains("left") ||
+          area.classList.contains("left-larger")
+        ) {
+          handleToggle("left");
+        }
+      };
+    });
+
+    if (window.senrenDefinitionKeyHandler) {
+      document.removeEventListener(
+        "keydown",
+        window.senrenDefinitionKeyHandler,
+      );
+    }
+
+    window.senrenDefinitionKeyHandler = (e) => {
+      if (totalVisibleItemsCount <= 1) return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (
+        typeof lightbox !== "undefined" &&
+        lightbox.classList.contains("active")
+      )
+        return;
+      if (document.querySelector(".notes-legend-overlay.active")) return;
+      if (
+        document.activeElement &&
+        (document.activeElement.tagName === "INPUT" ||
+          document.activeElement.tagName === "TEXTAREA")
+      ) {
+        return;
+      }
+      if (e.key === "j") {
+        e.preventDefault();
+        handleToggle("left");
+      }
+      if (e.key === "k") {
+        e.preventDefault();
+        handleToggle("right");
+      }
+    };
+
+    document.addEventListener("keydown", window.senrenDefinitionKeyHandler);
+  }
+
+  // Enables interaction effects
+  function enableInteractions() {
+    function applyClickToggleEffect(
+      triggerSelector,
+      targetSelector,
+      extraPadding = 0,
+    ) {
+      const trigger = document.querySelector(triggerSelector);
+      const target = document.querySelector(targetSelector);
+
+      if (trigger && target) {
+        const clickable = "is-clickable";
+
+        if (target.innerHTML.trim() !== "") {
+          trigger.classList.add(clickable);
+        } else {
+          trigger.classList.remove(clickable);
+        }
+        if (trigger.dataset.hasToggleListener) return;
+        trigger.dataset.hasToggleListener = "true";
+
+        trigger.addEventListener("click", () => {
+          if (!trigger.classList.contains(clickable)) {
+            return;
+          }
+
+          requestAnimationFrame(() => {
+            const isCollapsed = target.classList.contains("is-collapsed");
+
+            if (isCollapsed) {
+              target.classList.remove("is-collapsed");
+              target.style.maxHeight =
+                target.scrollHeight + extraPadding + "px";
+              if (extraPadding) {
+                target.style.opacity = "1";
+                target.style.paddingTop = extraPadding + "px";
+              }
+            } else {
+              target.classList.add("is-collapsed");
+              target.style.maxHeight = "0";
+              if (extraPadding) {
+                target.style.opacity = "0";
+                target.style.paddingTop = "0px";
+              }
+            }
+          });
+        });
+      }
+    }
+
+    function applyHoverEffect(
+      containerSelector,
+      targetSelector,
+      extraPadding = 0,
+    ) {
+      const containers = document.querySelectorAll(containerSelector);
+      const target = document.querySelector(targetSelector);
+      const marginTopValue = "5px";
+      const isTouch = window.matchMedia("(pointer: coarse)").matches;
+
+      if (containers.length > 0 && target) {
+        containers.forEach((container) => {
+          if (container.dataset.hasHoverListener) return;
+          container.dataset.hasHoverListener = "true";
+
+          if (isTouch) {
+            container.classList.add("tappable");
+          }
+
+          const expand = () => {
+            requestAnimationFrame(() => {
+              if (target.textContent.trim() !== "") {
+                target.style.maxHeight =
+                  target.scrollHeight + extraPadding * 2 + "px";
+                if (extraPadding) {
+                  target.style.opacity = "1";
+                  target.style.paddingTop = extraPadding + "px";
+                  target.style.paddingBottom = extraPadding + "px";
+                  target.style.marginTop = marginTopValue;
+                }
+              }
+            });
+          };
+
+          const collapse = () => {
+            requestAnimationFrame(() => {
+              target.style.maxHeight = "0";
+              if (extraPadding) {
+                target.style.opacity = "0";
+                target.style.paddingTop = "0px";
+                target.style.paddingBottom = "0px";
+                target.style.marginTop = "0px";
+              }
+            });
+          };
+
+          // Mouse Hover
+          container.addEventListener("pointerenter", (e) => {
+            if (e.pointerType === "mouse") expand();
+          });
+
+          container.addEventListener("pointerleave", (e) => {
+            if (e.pointerType === "mouse") collapse();
+          });
+
+          // Touch Interaction
+          container.addEventListener("click", (e) => {
+            if (e.pointerType === "touch" || isTouch) {
+              if (
+                e.target.closest("a, button, .tappable") &&
+                e.target.closest("a, button, .tappable") !== container
+              ) {
+                return;
+              }
+
+              const isCollapsed =
+                !target.style.maxHeight || target.style.maxHeight === "0px";
+              if (isCollapsed) {
+                expand();
+              } else {
+                collapse();
+              }
+            }
+          });
+        });
+      }
+    }
+
+    const sentenceEng = document.querySelector("#sentenceEng");
+
+    // ============================================
+    // GRAMMAR HOVER (for Related/Synonym/Antonym)
+    // ============================================
+    function initGrammarHover(notesBox) {
+      var grammarTooltip = document.getElementById("grammar-tooltip");
+      if (!grammarTooltip) return;
+
+      var ankiConnectUrl = "http://localhost:8765";
+      var grammarCache = {};
+      var hideGrammarTimeout = null;
+
+      async function ankiRequest(action, params) {
+        try {
+          var response = await fetch(ankiConnectUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: action,
+              version: 6,
+              params: params || {},
+            }),
+          });
+          if (!response.ok) return null;
+          var data = await response.json();
+          if (data.error) return null;
+          return data.result;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      // Ensure senren_englishAnkiRequest is available for click-to-browse
+      if (!window.senren_englishAnkiRequest) {
+        window.senren_englishAnkiRequest = ankiRequest;
+      }
+
+      function positionGrammarTooltip(tooltip, targetEl) {
+        var back = document.querySelector(".back");
+        if (!back) return;
+        var targetRect = targetEl.getBoundingClientRect();
+        var backRect = back.getBoundingClientRect();
+        var arrowSize = 7;
+
+        var relTop = targetRect.bottom - backRect.top;
+        var relLeft = targetRect.left - backRect.left;
+
+        tooltip.style.left = relLeft + "px";
+        tooltip.style.top = relTop + "px";
+        tooltip.classList.remove("tooltip-above");
+        tooltip.style.setProperty(
+          "--english-tooltip-arrow-left",
+          targetRect.width / 2 + "px",
+        );
+
+        // Adjust if overflows right
+        var tRect = tooltip.getBoundingClientRect();
+        if (tRect.right > window.innerWidth) {
+          tooltip.style.left =
+            relLeft + (window.innerWidth - tRect.right - 10) + "px";
+        }
+        // Adjust if overflows left
+        var finalLeft = parseFloat(tooltip.style.left || "0");
+        if (finalLeft + backRect.left < 0) {
+          tooltip.style.left = -backRect.left + 10 + "px";
+        }
+        // Flip above if overflows bottom
+        if (tRect.bottom > window.innerHeight - 10) {
+          var aboveTop =
+            targetRect.top - backRect.top - tRect.height - arrowSize;
+          if (aboveTop + backRect.top > 0) {
+            tooltip.style.top = aboveTop + "px";
+            tooltip.classList.add("tooltip-above");
+          }
+        }
+        // Recalculate arrow position
+        var fLeft = parseFloat(tooltip.style.left || "0");
+        var arrowLeft =
+          targetRect.left - backRect.left + targetRect.width / 2 - fLeft;
+        var tWidth = tooltip.offsetWidth;
+        arrowLeft = Math.max(
+          arrowSize,
+          Math.min(arrowLeft, tWidth - arrowSize),
+        );
+        tooltip.style.setProperty("--english-tooltip-arrow-left", arrowLeft + "px");
+      }
+
+      function hideGrammarInfo(force) {
+        clearTimeout(hideGrammarTimeout);
+        hideGrammarTimeout = setTimeout(
+          function () {
+            var overTerm = document.querySelector(".grammar-term:hover");
+            var overTooltip = grammarTooltip.matches(":hover");
+            if (!overTerm && !overTooltip) {
+              grammarTooltip.classList.remove("active");
+              grammarTooltip.style.display = "none";
+            }
+          },
+          force ? 0 : 150,
+        );
+      }
+
+      async function showGrammarInfo(termEl) {
+        clearTimeout(hideGrammarTimeout);
+        var term = termEl.dataset.term;
+        if (!term) return;
+
+        grammarTooltip.innerHTML =
+          '<div class="grammar-tooltip-loading">Searching\u2026</div>';
+        grammarTooltip.classList.add("active");
+        grammarTooltip.style.display = "block";
+        positionGrammarTooltip(grammarTooltip, termEl);
+
+        if (grammarCache[term]) {
+          renderGrammarResults(term, termEl);
+          return;
+        }
+
+        // Search for cards with this grammar in the word field
+        var query = 'note:SenrenEnglish+ "word:' + term + '"';
+        var noteIds = await ankiRequest("findNotes", { query: query });
+
+        if (!noteIds || noteIds.length === 0) {
+          grammarCache[term] = [];
+          renderGrammarResults(term, termEl);
+          return;
+        }
+
+        var notesInfo = await ankiRequest("notesInfo", { notes: noteIds });
+        if (!notesInfo) {
+          grammarCache[term] = [];
+          renderGrammarResults(term, termEl);
+          return;
+        }
+
+        // Get card types for new/review status
+        var allCardIds = [];
+        notesInfo.forEach(function (n) {
+          if (n.cards && n.cards.length)
+            allCardIds.push.apply(allCardIds, n.cards);
+        });
+        var cardTypeMap = {};
+        if (allCardIds.length > 0) {
+          var cardsInfo = await ankiRequest("cardsInfo", { cards: allCardIds });
+          if (cardsInfo) {
+            cardsInfo.forEach(function (c) {
+              cardTypeMap[c.cardId] = c.type;
+            });
+          }
+        }
+
+        var results = [];
+        var uniqueWords = new Set();
+
+        notesInfo.forEach(function (note) {
+          var fields = note.fields;
+          if (!fields || !fields.word || !fields.word.value) return;
+
+          var tempDiv = document.createElement("div");
+          tempDiv.innerHTML = fields.word.value;
+          var wordValue = (
+            tempDiv.textContent ||
+            tempDiv.innerText ||
+            ""
+          ).trim();
+
+          if (uniqueWords.has(wordValue)) return;
+          uniqueWords.add(wordValue);
+
+          var readingHtml = "";
+          var readingVal = fields.reading ? fields.reading.value : "";
+          if (readingVal && readingVal.includes("<li")) {
+            var tDiv = document.createElement("div");
+            tDiv.innerHTML = readingVal;
+            var firstLi = tDiv.querySelector("li");
+            if (firstLi) readingHtml = firstLi.innerHTML;
+          } else {
+            readingHtml = readingVal.split(/[,\u3001\u30FB]/)[0].trim();
+          }
+
+          var sentenceVal = fields.sentence ? fields.sentence.value : "";
+          var pitchVal = fields.pitch ? fields.pitch.value : "";
+          var pitchPosVal = fields.pitchPosition
+            ? fields.pitchPosition.value
+            : "";
+          var tagsVal = fields.Tags ? fields.Tags.value : "";
+          var isNew = !note.cards.some(function (cid) {
+            return cardTypeMap[cid] > 0;
+          });
+
+          results.push({
+            word: wordValue,
+            reading: readingHtml,
+            sentence: sentenceVal,
+            pitch: pitchVal,
+            pitchPosition: pitchPosVal,
+            tags: tagsVal,
+            isNew: isNew,
+            noteId: note.noteId,
+          });
+        });
+
+        grammarCache[term] = results;
+        renderGrammarResults(term, termEl);
+      }
+
+      function renderGrammarResults(term, termEl) {
+        var results = grammarCache[term] || [];
+
+        if (results.length === 0) {
+          grammarTooltip.innerHTML =
+            '<div class="grammar-tooltip-empty">No cards found for \u300C' +
+            term +
+            "\u300D</div>";
+          positionGrammarTooltip(grammarTooltip, termEl);
+          return;
+        }
+
+        var html = '<ul class="grammar-tooltip-list">';
+        var maxItems = 5;
+
+        results.forEach(function (item, idx) {
+          var newClass = item.isNew ? "is-new-card" : "";
+          var displayStyle = idx >= maxItems ? ' style="display: none;"' : "";
+
+          // Pitch info
+          var firstPitchCategory = "";
+          var formattedPosition = "";
+          if (item.pitchPosition) {
+            var numbers = [];
+            var numMatch;
+            var numRegex = /\d+/g;
+            while ((numMatch = numRegex.exec(item.pitchPosition)) !== null) {
+              var n = parseInt(numMatch[0], 10);
+              if (numbers.indexOf(n) === -1) numbers.push(n);
+            }
+            if (numbers.length > 0 && window.senren_englishGetPitchType) {
+              var tempRt = null;
+              if (item.reading) {
+                var tDiv = document.createElement("div");
+                tDiv.innerHTML = item.reading;
+                var txt = tDiv.textContent || "";
+                if (txt) {
+                  tempRt = document.createElement("rt");
+                  tempRt.textContent = txt;
+                }
+              }
+              formattedPosition = numbers
+                .map(function (num) {
+                  var pt = window.senren_englishGetPitchType(num, tempRt);
+                  pt = pt.split(",")[0].trim();
+                  return (
+                    '<span class="pitch-number ' + pt + '">' + num + "</span>"
+                  );
+                })
+                .join("\u30FB");
+              var types = numbers.map(function (num) {
+                return window
+                  .senren_englishGetPitchType(num, tempRt)
+                  .split(",")[0]
+                  .trim();
+              });
+              firstPitchCategory = types[0] || "";
+            }
+          }
+          if (!firstPitchCategory) {
+            firstPitchCategory = item.pitch
+              ? item.pitch.split(",")[0].trim()
+              : "";
+          }
+
+          var sentenceHtml = "";
+          if (item.sentence) {
+            var s = item.sentence.trim();
+            sentenceHtml = '<div class="related-sentence">' + s + "</div>";
+          }
+
+          var clickAction =
+            "onclick=\"window.senren_englishAnkiRequest('guiBrowse', { query: 'nid:" +
+            item.noteId +
+            "' })\"";
+
+          html +=
+            '<li class="' +
+            newClass +
+            " " +
+            (firstPitchCategory || "") +
+            '"' +
+            displayStyle +
+            ">" +
+            '<div class="related-word-container pitch card-a">' +
+            '<span class="pitch-info ' +
+            (firstPitchCategory || "") +
+            " " +
+            (item.tags || "") +
+            '">' +
+            "<ruby>" +
+            '<span class="related-word clickable-word" ' +
+            clickAction +
+            ">" +
+            item.word +
+            "</span>" +
+            (item.reading ? "<rt>" + item.reading + "</rt>" : "") +
+            "</ruby>" +
+            (formattedPosition
+              ? '<div class="position">' + formattedPosition + "</div>"
+              : "") +
+            "</span>" +
+            "</div>" +
+            sentenceHtml +
+            "</li>";
+        });
+
+        html += "</ul>";
+
+        if (results.length > maxItems) {
+          html +=
+            '<button class="show-more-btn">Show More (' +
+            (results.length - maxItems) +
+            ")</button>";
+        }
+
+        grammarTooltip.innerHTML = html;
+
+        // Draw pitch lines if available
+        if (typeof drawTooltipPitchLines === "function") {
+          drawTooltipPitchLines(grammarTooltip);
+        } else if (window.senren_englishDrawPitchLines) {
+          window.senren_englishDrawPitchLines(grammarTooltip);
+        }
+
+        grammarTooltip.classList.add("active");
+        grammarTooltip.style.display = "block";
+        positionGrammarTooltip(grammarTooltip, termEl);
+
+        var showMoreBtn = grammarTooltip.querySelector(".show-more-btn");
+        if (showMoreBtn) {
+          showMoreBtn.addEventListener("click", function () {
+            var hidden = grammarTooltip.querySelectorAll(
+              'li[style="display: none;"]',
+            );
+            hidden.forEach(function (el) {
+              el.style.display = "";
+            });
+            showMoreBtn.remove();
+            positionGrammarTooltip(grammarTooltip, termEl);
+          });
+        }
+
+        grammarTooltip.onmouseover = function () {
+          clearTimeout(hideGrammarTimeout);
+        };
+        grammarTooltip.onmouseout = function () {
+          hideGrammarInfo();
+        };
+      }
+
+      // Find Related/Synonym/Antonym section bodies and wrap terms
+      var hoverableSections = notesBox.querySelectorAll(
+        '.notes-section[data-section="related"] .notes-section-body, ' +
+          '.notes-section[data-section="synonym"] .notes-section-body, ' +
+          '.notes-section[data-section="antonym"] .notes-section-body',
+      );
+
+      hoverableSections.forEach(function (body) {
+        var rawContent = body.innerHTML;
+        // Split by common delimiters: full-width space, comma, ・, 、, <br>
+        // but preserve the delimiters
+        var parts = rawContent.split(
+          /(\u3000|[,\uFF0C]\s*|\u30FB|\u3001|<br\s*\/?>)/gi,
+        );
+        var newHtml = "";
+
+        parts.forEach(function (part) {
+          var trimmed = part.trim();
+          // Check if it's a delimiter or whitespace
+          if (
+            !trimmed ||
+            /^(\u3000|[,\uFF0C]\s*|\u30FB|\u3001|<br\s*\/?>)$/i.test(
+              part.trim(),
+            )
+          ) {
+            newHtml += part;
+          } else {
+            // Strip any existing HTML tags from the term for the data attribute
+            var tempDiv = document.createElement("div");
+            tempDiv.innerHTML = trimmed;
+            var cleanTerm = (
+              tempDiv.textContent ||
+              tempDiv.innerText ||
+              ""
+            ).trim();
+            if (cleanTerm) {
+              newHtml +=
+                '<span class="grammar-term" data-term="' +
+                cleanTerm.replace(/"/g, "&quot;") +
+                '">' +
+                trimmed +
+                "</span>";
+            } else {
+              newHtml += part;
+            }
+          }
+        });
+
+        body.innerHTML = newHtml;
+
+        // Attach hover events
+        var terms = body.querySelectorAll(".grammar-term");
+        terms.forEach(function (termEl) {
+          termEl.addEventListener("mouseover", function () {
+            showGrammarInfo(termEl);
+          });
+          termEl.addEventListener("mouseout", function () {
+            hideGrammarInfo();
+          });
+        });
+      });
+    }
+
+    // ============================================
+    // NOTES SECTIONS (navigable like glossary)
+    // ============================================
+    (function initNotesSections() {
+      try {
+        const notesPanel = document.getElementById("notes");
+        if (!notesPanel) return;
+
+        const notesBox = notesPanel.querySelector(".notes-box");
+        const rawSpan = notesPanel.querySelector(".notes-raw");
+        if (!rawSpan) return;
+
+        const raw = rawSpan.innerHTML;
+
+        // Normalize block-level HTML (div, p) to <br> for consistent parsing
+        var normalized = raw
+          .replace(/<\/?(div|p|section|article)(?:\s[^>]*)?>\s*/gi, "<br>")
+          .replace(/(<br\s*\/?>\s*){2,}/gi, "<br><br>")
+          .replace(/^\s*(?:<br\s*\/?>\s*)*/i, "")
+          .replace(/(?:\s*<br\s*\/?>)*\s*$/i, "");
+
+        const sectionKeywords = [
+          "About",
+          "Caution",
+          "Fun Fact",
+          "Synonym",
+          "Antonym",
+          "Related",
+          "Misc",
+          "Structure",
+          "Details",
+        ];
+        const testPattern = new RegExp(
+          "(?:^|<br\\s*/?>|\\n)\\s*(" + sectionKeywords.join("|") + ")\\b\\.?",
+          "i",
+        );
+        const iconMap = {
+          about: "fa-circle-info",
+          caution: "fa-triangle-exclamation",
+          "fun fact": "fa-lightbulb",
+          synonym: "fa-equals",
+          antonym: "fa-right-left",
+          related: "fa-link",
+          misc: "fa-puzzle-piece",
+          structure: "fa-cubes",
+          details: "fa-tags",
+        };
+        const colorMap = {
+          about: "var(--english-notes-section-about)",
+          caution: "var(--english-notes-section-caution)",
+          "fun fact": "var(--english-notes-section-fun-fact)",
+          synonym: "var(--english-notes-section-synonym)",
+          antonym: "var(--english-notes-section-antonym)",
+          related: "var(--english-notes-section-related)",
+          misc: "var(--english-notes-section-misc)",
+          structure: "var(--english-notes-section-structure)",
+          details: "var(--english-notes-section-details)",
+        };
+
+        // Sections that use card grid layout (pipe-delimited)
+        const cardGridSections = ["synonym", "antonym", "related", "misc"];
+
+        // Parse sections
+        var parsedSections = [];
+
+        if (testPattern.test(normalized)) {
+          var sectionPattern = new RegExp(
+            "(?:^|<br\\s*/?>|\\n)\\s*(" +
+              sectionKeywords.join("|") +
+              ")\\b\\.?([^]*?)(?=(?:<br\\s*/?>|\\n)\\s*(?:" +
+              sectionKeywords.join("|") +
+              ")\\b\\.?|$)",
+            "gi",
+          );
+          var firstMatch = normalized.search(testPattern);
+          var preamble =
+            firstMatch > 0 ? normalized.substring(0, firstMatch).trim() : "";
+          sectionPattern.lastIndex = 0;
+          var m;
+          while ((m = sectionPattern.exec(normalized)) !== null) {
+            var content = (m[2] || "")
+              .replace(/^[\s]*(<br\s*\/?>[\s]*)*/gi, "")
+              .trim();
+            content = content.replace(/(<br\s*\/?>[\s]*)*$/gi, "").trim();
+            parsedSections.push({
+              keyword: m[1],
+              content: content,
+              preamble: "",
+            });
+          }
+          if (preamble && parsedSections.length > 0) {
+            parsedSections[0].preamble = preamble;
+          }
+        }
+
+        // No sections found => show normalized as single item
+        if (parsedSections.length === 0) {
+          parsedSections.push({
+            keyword: "",
+            content: normalized,
+            preamble: "",
+          });
+        }
+
+        // Build section elements
+        var sectionEls = [];
+        notesBox.innerHTML = "";
+
+        parsedSections.forEach(function (sec, i) {
+          var div = document.createElement("div");
+          div.className = "notes-section-item";
+          div.style.display = i === 0 ? "block" : "none";
+
+          var html = "";
+          if (sec.preamble) {
+            html += '<div class="notes-preamble">' + sec.preamble + "</div>";
+          }
+          if (sec.keyword) {
+            var key = sec.keyword.toLowerCase();
+            var icon = iconMap[key] || "fa-circle-info";
+            var color = colorMap[key] || colorMap.about;
+
+            // Card grid layout for Synonym/Antonym/Related/Misc sections (pipe-delimited entries)
+            if (
+              cardGridSections.indexOf(key) !== -1 &&
+              sec.content.indexOf("|") !== -1
+            ) {
+              var lines = sec.content
+                .split(/<br\s*\/?>/gi)
+                .filter(function (l) {
+                  return l.trim();
+                });
+
+              html +=
+                '<div class="notes-section notes-card-section" data-section="' +
+                key +
+                '" style="--english-section-color: ' +
+                color +
+                '">';
+              html += '<div class="notes-card-toolbar">';
+              html += '<div class="notes-section-header">';
+              html += '<i class="fas ' + icon + ' notes-section-icon"></i>';
+              html +=
+                '<span class="notes-section-title">' + sec.keyword + "</span>";
+              html += "</div>";
+              html +=
+                '<button class="notes-card-toggle-all tappable" data-state="expanded">Collapse All</button>';
+              html += "</div>";
+
+              html += '<div class="notes-card-grid">';
+              lines.forEach(function (line) {
+                var parts = line.split("|").map(function (p) {
+                  return p.trim();
+                });
+                var rawWord = parts[0] || "";
+                var meaning = parts[1] || "";
+                var level = parts[2] || "";
+                var desc = parts[3] || "";
+
+                // Strip disambiguation parentheses for display: のに (Despite) → のに
+                // Keep full value for Anki browse search
+                var displayWord = rawWord.replace(/\s*\(.*?\)\s*$/, "").trim();
+
+                html += '<div class="notes-card tappable">';
+                html += '<div class="notes-card-top">';
+                html += '<div class="notes-card-info">';
+                html +=
+                  '<div class="notes-card-word">' + displayWord + "</div>";
+                if (meaning)
+                  html +=
+                    '<div class="notes-card-meaning">' + meaning + "</div>";
+                if (level) {
+                  html +=
+                    '<div class="notes-card-badge"><i class="fas fa-times badge-icon"></i> ' +
+                    level +
+                    "</div>";
+                }
+                html += "</div>";
+                html +=
+                  '<span class="notes-card-link tappable" data-word="' +
+                  rawWord.replace(/"/g, "&quot;") +
+                  '" title="Browse in Anki"><i class="fas fa-external-link-alt"></i></span>';
+                html += "</div>";
+                if (desc) {
+                  html += '<div class="notes-card-desc">' + desc + "</div>";
+                }
+                html += "</div>";
+              });
+              html += "</div>";
+              html += "</div>";
+            } else if (key === "structure") {
+              // Structure section: Standard/Polite toggle
+              // Convert HTML-escaped <br> to actual line breaks
+              var structureContent = sec.content
+                .replace(/&lt;br\s*\/?&gt;/gi, "<br>")
+                .replace(/&lt;BR\s*\/?&gt;/gi, "<br>");
+              var structureParts = structureContent
+                .split("||")
+                .map(function (p) {
+                  return p.trim();
+                });
+              var standardContent = structureParts[0] || "";
+              var politeContent =
+                structureParts.length > 1 ? structureParts[1] : "";
+              var hasPolite = politeContent.length > 0;
+
+              html +=
+                '<div class="notes-section notes-structure-section" data-section="structure" style="--english-section-color: ' +
+                color +
+                '">';
+              html += '<div class="notes-structure-header">';
+              html += '<div class="notes-section-header">';
+              html += '<i class="fas ' + icon + ' notes-section-icon"></i>';
+              html +=
+                '<span class="notes-section-title">' + sec.keyword + "</span>";
+              html += "</div>";
+              if (hasPolite) {
+                html += '<div class="notes-structure-toggle">';
+                html +=
+                  '<button class="notes-structure-btn tappable active" data-mode="standard">Standard</button>';
+                html +=
+                  '<button class="notes-structure-btn tappable" data-mode="polite">Polite</button>';
+                html += "</div>";
+              }
+              html += "</div>";
+              html += '<div class="notes-structure-content">';
+              html +=
+                '<div class="notes-structure-panel active" data-panel="standard">' +
+                standardContent +
+                "</div>";
+              if (hasPolite) {
+                html +=
+                  '<div class="notes-structure-panel" data-panel="polite">' +
+                  politeContent +
+                  "</div>";
+              }
+              html += "</div>";
+              html += "</div>";
+            } else if (key === "details") {
+              // Details section: Part of Speech / Word Type / Register / Rare Kanji
+              var detailParts = sec.content.split("|").map(function (p) {
+                return p.trim();
+              });
+              var partOfSpeech = detailParts[0] || "";
+              var wordType = detailParts[1] || "";
+              var register = detailParts[2] || "";
+              var rareKanji = detailParts[3] || "";
+
+              html +=
+                '<div class="notes-section notes-details-section" data-section="details" style="--english-section-color: ' +
+                color +
+                '">';
+              html += '<div class="notes-section-header">';
+              html += '<i class="fas ' + icon + ' notes-section-icon"></i>';
+              html +=
+                '<span class="notes-section-title">' + sec.keyword + "</span>";
+              html += "</div>";
+              html += '<div class="notes-details-grid">';
+              if (partOfSpeech) {
+                html += '<div class="notes-details-item">';
+                html +=
+                  '<div class="notes-details-label">Part of Speech <button class="notes-details-info tappable" data-legend="pos" title="View legend"><i class="fas fa-info-circle"></i></button></div>';
+                html +=
+                  '<div class="notes-details-value">' + partOfSpeech + "</div>";
+                html += "</div>";
+              }
+              if (wordType) {
+                html += '<div class="notes-details-item">';
+                html +=
+                  '<div class="notes-details-label">Word Type <button class="notes-details-info tappable" data-legend="wordtype" title="View legend"><i class="fas fa-info-circle"></i></button></div>';
+                html +=
+                  '<div class="notes-details-value">' + wordType + "</div>";
+                html += "</div>";
+              }
+              if (register) {
+                html += '<div class="notes-details-item">';
+                html +=
+                  '<div class="notes-details-label">Register <button class="notes-details-info tappable" data-legend="register" title="View legend"><i class="fas fa-info-circle"></i></button></div>';
+                html +=
+                  '<div class="notes-details-value">' + register + "</div>";
+                html += "</div>";
+              }
+              if (rareKanji) {
+                html += '<div class="notes-details-item">';
+                html +=
+                  '<div class="notes-details-label">Rare Kanji <button class="notes-details-info tappable" data-legend="rarekanji" title="View legend"><i class="fas fa-info-circle"></i></button></div>';
+                html +=
+                  '<div class="notes-details-value notes-details-rare-kanji">';
+                var kanjiParts = rareKanji
+                  .split("\u30FB")
+                  .map(function (k) {
+                    return k.trim();
+                  })
+                  .filter(Boolean);
+                kanjiParts.forEach(function (k) {
+                  html += '<span class="rare-kanji-chip">' + k + "</span>";
+                });
+                html += "</div>";
+                html += "</div>";
+              }
+              html += "</div>";
+              html += "</div>";
+            } else {
+              // Default section rendering
+              html +=
+                '<div class="notes-section" data-section="' +
+                key +
+                '" style="--english-section-color: ' +
+                color +
+                '">';
+              html += '<div class="notes-section-header">';
+              html += '<i class="fas ' + icon + ' notes-section-icon"></i>';
+              html +=
+                '<span class="notes-section-title">' + sec.keyword + "</span>";
+              html += "</div>";
+              html +=
+                '<div class="notes-section-body">' + sec.content + "</div>";
+              html += "</div>";
+            }
+          } else {
+            html += '<div class="notes-section-body">' + sec.content + "</div>";
+          }
+
+          div.innerHTML = html;
+          notesBox.appendChild(div);
+          sectionEls.push(div);
+        });
+
+        // Grammar hover for Related/Synonym/Antonym sections
+        initGrammarHover(notesBox);
+
+        // Card grid: Collapse/Expand All buttons
+        notesBox
+          .querySelectorAll(".notes-card-toggle-all")
+          .forEach(function (btn) {
+            btn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              var section = btn.closest(".notes-card-section");
+              if (!section) return;
+              var descs = section.querySelectorAll(".notes-card-desc");
+              var isExpanded = btn.getAttribute("data-state") === "expanded";
+
+              descs.forEach(function (desc) {
+                if (isExpanded) {
+                  desc.classList.add("is-collapsed");
+                } else {
+                  desc.classList.remove("is-collapsed");
+                }
+              });
+
+              btn.setAttribute(
+                "data-state",
+                isExpanded ? "collapsed" : "expanded",
+              );
+              btn.textContent = isExpanded ? "Expand All" : "Collapse All";
+
+              if (!notesPanel.classList.contains("is-collapsed")) {
+                notesPanel.style.maxHeight = notesPanel.scrollHeight + "px";
+              }
+            });
+          });
+
+        // Card grid: Individual card click to toggle description
+        notesBox.querySelectorAll(".notes-card").forEach(function (card) {
+          card.addEventListener("click", function (e) {
+            if (e.target.closest(".notes-card-link")) return;
+            var desc = card.querySelector(".notes-card-desc");
+            if (!desc) return;
+            desc.classList.toggle("is-collapsed");
+
+            if (!notesPanel.classList.contains("is-collapsed")) {
+              setTimeout(function () {
+                notesPanel.style.maxHeight = notesPanel.scrollHeight + "px";
+              }, 10);
+            }
+          });
+        });
+
+        // Card grid: Anki browse links
+        notesBox.querySelectorAll(".notes-card-link").forEach(function (link) {
+          link.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var word = link.getAttribute("data-word");
+            if (!word || !window.senren_englishAnkiRequest) return;
+
+            var query = '"word:' + word + '"';
+
+            window
+              .senren_englishAnkiRequest("findNotes", { query: query })
+              .then(function (noteIds) {
+                if (noteIds && noteIds.length > 0) {
+                  window.senren_englishAnkiRequest("guiBrowse", {
+                    query: query,
+                  });
+                } else {
+                  var origHTML = link.innerHTML;
+                  link.innerHTML =
+                    '<span style="font-size: 0.65rem; color: #bf616a;">Not Found</span>';
+                  setTimeout(function () {
+                    link.innerHTML = origHTML;
+                  }, 2000);
+                }
+              });
+          });
+        });
+
+        // Structure section: Standard/Polite toggle
+        notesBox
+          .querySelectorAll(".notes-structure-btn")
+          .forEach(function (btn) {
+            btn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              var section = btn.closest(".notes-structure-section");
+              if (!section) return;
+              var mode = btn.getAttribute("data-mode");
+
+              section
+                .querySelectorAll(".notes-structure-btn")
+                .forEach(function (b) {
+                  b.classList.remove("active");
+                });
+              btn.classList.add("active");
+
+              section
+                .querySelectorAll(".notes-structure-panel")
+                .forEach(function (p) {
+                  p.classList.remove("active");
+                });
+              var target = section.querySelector(
+                '.notes-structure-panel[data-panel="' + mode + '"]',
+              );
+              if (target) target.classList.add("active");
+
+              if (!notesPanel.classList.contains("is-collapsed")) {
+                notesPanel.style.maxHeight = notesPanel.scrollHeight + "px";
+              }
+            });
+          });
+
+        // Details section: Legend popup data
+        var legendData = {
+          pos: {
+            title: "Parts of Speech",
+            entries: [
+              {
+                term: "Expression",
+                jp: "表現",
+                reading: "ひょうげん",
+                desc: "A set combination of words that together convey a specific meaning or grammatical function.",
+              },
+              {
+                term: "Adjective",
+                jp: "形容詞",
+                reading: "けいようし",
+                desc: "A word that describes or modifies a noun, expressing qualities, states, or characteristics.",
+              },
+              {
+                term: "Adverb",
+                jp: "副詞",
+                reading: "ふくし",
+                desc: "A word that modifies a verb, adjective, or another adverb, expressing manner, degree, or frequency.",
+              },
+              {
+                term: "Auxiliary Verb",
+                jp: "助動詞",
+                reading: "じょどうし",
+                desc: "Verbs that attach to other words to add grammatical meaning such as tense, negation, or politeness.",
+              },
+              {
+                term: "Conjunctive Particle",
+                jp: "接続助詞",
+                reading: "せつぞくじょし",
+                desc: "Suffixes or particles that connect clauses, indicating relationships like cause, condition, or contrast.",
+              },
+              {
+                term: "Noun",
+                jp: "名詞",
+                reading: "めいし",
+                desc: "A word that represents a person, place, thing, or concept.",
+              },
+              {
+                term: "Particle",
+                jp: "助詞",
+                reading: "じょし",
+                desc: "A suffix that indicates the grammatical relationship of a word within a sentence.",
+              },
+              {
+                term: "Pronoun",
+                jp: "代名詞",
+                reading: "だいめいし",
+                desc: "A word that takes the place of a noun, referring to people, things, or concepts.",
+              },
+              {
+                term: "Verb",
+                jp: "動詞",
+                reading: "どうし",
+                desc: "A word used to describe an action, state, or occurrence.",
+              },
+            ],
+          },
+          wordtype: {
+            title: "Word Types",
+            entries: [
+              {
+                term: "Abbreviation",
+                desc: "A shortened form of a word or phrase.",
+              },
+              {
+                term: "Adjectival Noun",
+                desc: "A noun that functions as an adjective, typically using な to modify other nouns (な-adjective).",
+              },
+              {
+                term: "Adjective",
+                desc: "An い-adjective that directly modifies nouns and conjugates for tense and negation.",
+              },
+              {
+                term: "Adverb",
+                desc: "A word that modifies verbs, adjectives, or other adverbs.",
+              },
+              {
+                term: "Adverb Phrase",
+                desc: "A group of words functioning together as an adverb.",
+              },
+              {
+                term: "Adverbial Particle",
+                desc: "A particle that adds adverbial meaning to the word it follows.",
+              },
+              {
+                term: "Auxiliary Verb",
+                desc: "A verb that attaches to another verb to add grammatical meaning.",
+              },
+              {
+                term: "Case Marking Particle",
+                desc: "A particle that marks the grammatical role of a noun in a sentence (e.g. が, を, に).",
+              },
+              {
+                term: "Conjunction",
+                desc: "A word that connects words, phrases, or clauses together.",
+              },
+              {
+                term: "Conjunctive Particle",
+                desc: "A particle that connects clauses, indicating cause, condition, or contrast.",
+              },
+              {
+                term: "Definite Article",
+                desc: "A word that specifies a particular noun (not native to Japanese, used in comparative grammar).",
+              },
+              {
+                term: "Demonstrative Pronoun",
+                desc: "A pronoun that points to a specific thing (e.g. これ, それ, あれ).",
+              },
+              {
+                term: "Dependent Word",
+                desc: "A word that cannot stand alone and must be attached to another word.",
+              },
+              {
+                term: "Dictionary Form",
+                desc: "The base, unconjugated form of a verb as it appears in the dictionary.",
+              },
+              {
+                term: "Indefinite Article",
+                desc: "A word that refers to a non-specific noun (not native to Japanese, used in comparative grammar).",
+              },
+              {
+                term: "Independent Word",
+                desc: "A word that can stand alone and carry meaning by itself.",
+              },
+              {
+                term: "Informal Speech",
+                desc: "Casual language used in relaxed or familiar contexts.",
+              },
+              {
+                term: "Linking Particle",
+                desc: "A particle that connects elements within a sentence.",
+              },
+              {
+                term: "Noun",
+                desc: "A word representing a person, place, thing, or idea.",
+              },
+              {
+                term: "Ordinary",
+                desc: "Standard, everyday language without special formality.",
+              },
+              {
+                term: "Personal Pronoun",
+                desc: "A pronoun referring to a specific person (e.g. 私, あなた, 彼).",
+              },
+              {
+                term: "Plural",
+                desc: "A form indicating more than one of something.",
+              },
+              {
+                term: "Possessive",
+                desc: "A form indicating ownership or association.",
+              },
+              {
+                term: "Possessive Pronoun",
+                desc: "A pronoun indicating possession (e.g. 私の).",
+              },
+              {
+                term: "Predicate",
+                desc: "The part of a sentence that describes what the subject does or is.",
+              },
+              {
+                term: "Present Simple Tense",
+                desc: "The verb form expressing current or habitual actions.",
+              },
+              {
+                term: "Pronoun",
+                desc: "A word that substitutes for a noun.",
+              },
+              {
+                term: "Question Sentence Order",
+                desc: "The word order used when forming questions in Japanese.",
+              },
+              {
+                term: "Sentence Ending Particle",
+                desc: "A particle placed at the end of a sentence to add nuance (e.g. よ, ね, か).",
+              },
+              {
+                term: "Verb",
+                desc: "A word describing an action, state, or occurrence.",
+              },
+            ],
+          },
+          register: {
+            title: "Register",
+            entries: [
+              {
+                term: "Standard",
+                jp: "標準語",
+                reading: "ひょうじゅんご",
+                desc: "The default level of formality used in everyday conversation and general writing.",
+              },
+              {
+                term: "Formal",
+                jp: "正式",
+                reading: "せいしき",
+                desc: "Used in official contexts, ceremonial situations, business documents, and formal speeches.",
+              },
+              {
+                term: "Polite",
+                jp: "丁寧語",
+                reading: "ていねいご",
+                desc: "Shows respect through polite forms (です/ます), appropriate for most social interactions.",
+              },
+              {
+                term: "Casual",
+                jp: "くだけた表現",
+                reading: "",
+                desc: "Informal speech used among close friends, family, or in relaxed social settings.",
+              },
+            ],
+          },
+          rarekanji: {
+            title: "Rare Kanji",
+            entries: [
+              {
+                term: "Rare Kanji",
+                jp: "表外漢字",
+                reading: "ひょうがいかんじ",
+                desc: "Kanji not included in the Jōyō kanji list. These characters may appear in literature, names, or older texts but are uncommon in everyday modern usage.",
+              },
+              {
+                term: "Hyōgai Kanji",
+                jp: "表外漢字",
+                reading: "ひょうがいかんじ",
+                desc: "Characters outside the official Jōyō list, sometimes used in formal writing, classical texts, or specialized vocabulary.",
+              },
+              {
+                term: "Variant Form",
+                jp: "異体字",
+                reading: "いたいじ",
+                desc: "An alternative written form of a kanji that carries the same meaning and reading (e.g. 儘 and 侭).",
+              },
+              {
+                term: "Old Form",
+                jp: "旧字体",
+                reading: "きゅうじたい",
+                desc: "The traditional form of a kanji used before the post-war script reform (e.g. 國 → 国).",
+              },
+              {
+                term: "Ateji",
+                jp: "当て字",
+                reading: "あてじ",
+                desc: "Kanji assigned to a word based on phonetic reading rather than meaning.",
+              },
+            ],
+          },
+        };
+
+        // Legend popup: create overlay lazily, show/hide
+        var legendOverlay = null;
+
+        function showLegend(type, currentValue) {
+          var data = legendData[type];
+          if (!data) return;
+          var matchValue = (currentValue || "").trim().toLowerCase();
+
+          if (!legendOverlay) {
+            legendOverlay = document.createElement("div");
+            legendOverlay.className = "notes-legend-overlay";
+            legendOverlay.innerHTML =
+              '<div class="notes-legend-modal">' +
+              '<div class="notes-legend-header">' +
+              '<span class="notes-legend-title"></span>' +
+              '<button class="notes-legend-close tappable"><i class="fas fa-times"></i></button>' +
+              "</div>" +
+              '<div class="notes-legend-body"></div>' +
+              "</div>";
+            document.body.appendChild(legendOverlay);
+
+            legendOverlay.addEventListener("click", function (e) {
+              if (e.target === legendOverlay) closeLegend();
+            });
+            legendOverlay
+              .querySelector(".notes-legend-close")
+              .addEventListener("click", closeLegend);
+          }
+
+          legendOverlay.querySelector(".notes-legend-title").textContent =
+            data.title;
+
+          var bodyHtml = '<table class="notes-legend-table">';
+          bodyHtml +=
+            "<thead><tr><th>Term</th><th>Description</th></tr></thead>";
+          bodyHtml += "<tbody>";
+          data.entries.forEach(function (entry) {
+            var isMatch = matchValue && entry.term.toLowerCase() === matchValue;
+            bodyHtml +=
+              "<tr" + (isMatch ? ' class="legend-highlight"' : "") + ">";
+            bodyHtml += '<td class="notes-legend-term">';
+            bodyHtml +=
+              '<span class="notes-legend-term-en">' + entry.term + "</span>";
+            if (entry.jp) {
+              bodyHtml += '<span class="notes-legend-term-jp">' + entry.jp;
+              if (entry.reading)
+                bodyHtml +=
+                  ' <span class="notes-legend-reading">(' +
+                  entry.reading +
+                  ")</span>";
+              bodyHtml += "</span>";
+            }
+            bodyHtml += "</td>";
+            bodyHtml += '<td class="notes-legend-desc">' + entry.desc + "</td>";
+            bodyHtml += "</tr>";
+          });
+          bodyHtml += "</tbody></table>";
+
+          legendOverlay.querySelector(".notes-legend-body").innerHTML =
+            bodyHtml;
+          legendOverlay.classList.add("active");
+
+          // Scroll highlighted row into view
+          var highlighted = legendOverlay.querySelector(".legend-highlight");
+          if (highlighted) {
+            highlighted.scrollIntoView({ block: "center", behavior: "smooth" });
+          }
+        }
+
+        function closeLegend() {
+          if (legendOverlay) legendOverlay.classList.remove("active");
+        }
+
+        if (window._senren_englishLegendKeyHandler) {
+          document.removeEventListener(
+            "keydown",
+            window._senren_englishLegendKeyHandler,
+          );
+        }
+        window._senren_englishLegendKeyHandler = function (e) {
+          if (
+            e.key === "Escape" &&
+            legendOverlay &&
+            legendOverlay.classList.contains("active")
+          ) {
+            closeLegend();
+          }
+        };
+        document.addEventListener("keydown", window._senren_englishLegendKeyHandler);
+
+        // Details section: info icon click → show legend
+        notesBox
+          .querySelectorAll(".notes-details-info")
+          .forEach(function (btn) {
+            btn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              var type = btn.getAttribute("data-legend");
+              var item = btn.closest(".notes-details-item");
+              var value = item
+                ? item.querySelector(".notes-details-value").textContent
+                : "";
+              showLegend(type, value);
+            });
+          });
+
+        var totalSections = sectionEls.length;
+        var currentNoteIndex = 0;
+
+        // Counter
+        var counterEl = notesPanel.querySelector(".notes-counter");
+        function updateCounter() {
+          if (counterEl && totalSections > 1) {
+            counterEl.textContent =
+              currentNoteIndex + 1 + " / " + totalSections;
+            counterEl.style.display = "block";
+          } else if (counterEl) {
+            counterEl.style.display = "none";
+          }
+        }
+
+        // Toggle areas
+        var toggleAreas = notesPanel.querySelectorAll(".toggle-area");
+        if (totalSections <= 1) {
+          toggleAreas.forEach(function (a) {
+            a.style.display = "none";
+          });
+        }
+
+        function showSection(index) {
+          sectionEls.forEach(function (el, i) {
+            el.style.display = i === index ? "block" : "none";
+          });
+          currentNoteIndex = index;
+          updateCounter();
+          // Recalculate max-height for the panel
+          if (!notesPanel.classList.contains("is-collapsed")) {
+            notesPanel.style.maxHeight = notesPanel.scrollHeight + "px";
+          }
+        }
+
+        function handleNoteToggle(direction) {
+          if (totalSections <= 1) return;
+          var next;
+          if (direction === "right") {
+            next = (currentNoteIndex + 1) % totalSections;
+          } else {
+            next = (currentNoteIndex - 1 + totalSections) % totalSections;
+          }
+          showSection(next);
+        }
+
+        toggleAreas.forEach(function (area) {
+          area.onclick = function () {
+            if (totalSections <= 1) return;
+            if (
+              area.classList.contains("right") ||
+              area.classList.contains("right-larger")
+            ) {
+              handleNoteToggle("right");
+            } else {
+              handleNoteToggle("left");
+            }
+          };
+        });
+
+        // H/L navigation for notes (only when notes visible)
+        if (window._senren_englishNotesNavHandler) {
+          document.removeEventListener(
+            "keydown",
+            window._senren_englishNotesNavHandler,
+          );
+        }
+        window._senren_englishNotesNavHandler = function (e) {
+          if (totalSections <= 1) return;
+          if (e.ctrlKey || e.altKey || e.metaKey) return;
+          if (notesPanel.classList.contains("is-collapsed")) return;
+          if (
+            document.activeElement &&
+            (document.activeElement.tagName === "INPUT" ||
+              document.activeElement.tagName === "TEXTAREA")
+          )
+            return;
+          if (
+            typeof lightbox !== "undefined" &&
+            lightbox.classList.contains("active")
+          )
+            return;
+          if (document.querySelector(".notes-legend-overlay.active")) return;
+
+          if (e.key === "h") {
+            e.preventDefault();
+            handleNoteToggle("left");
+          }
+          if (e.key === "l") {
+            e.preventDefault();
+            handleNoteToggle("right");
+          }
+        };
+        document.addEventListener("keydown", window._senren_englishNotesNavHandler);
+
+        updateCounter();
+      } catch (err) {
+        console.error("initNotesSections error:", err);
+      }
+    })();
+
+    // Toggle notes expand/collapse via header button
+    applyClickToggleEffect(".toggle-notes", "#notes");
+
+    // N key to toggle notes expand/collapse
+    (function () {
+      var notesPanelN = document.getElementById("notes");
+      if (!notesPanelN) return;
+
+      if (window._senren_englishNotesToggleHandler) {
+        document.removeEventListener(
+          "keydown",
+          window._senren_englishNotesToggleHandler,
+        );
+      }
+      window._senren_englishNotesToggleHandler = function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        if (
+          document.activeElement &&
+          (document.activeElement.tagName === "INPUT" ||
+            document.activeElement.tagName === "TEXTAREA")
+        )
+          return;
+        if (
+          typeof lightbox !== "undefined" &&
+          lightbox.classList.contains("active")
+        )
+          return;
+        if (document.querySelector(".notes-legend-overlay.active")) return;
+
+        if (e.key === "n") {
+          e.preventDefault();
+          requestAnimationFrame(function () {
+            var isCollapsed = notesPanelN.classList.contains("is-collapsed");
+            if (isCollapsed) {
+              notesPanelN.classList.remove("is-collapsed");
+              notesPanelN.style.maxHeight = notesPanelN.scrollHeight + "px";
+            } else {
+              notesPanelN.classList.add("is-collapsed");
+              notesPanelN.style.maxHeight = "0";
+            }
+          });
+        }
+      };
+      document.addEventListener("keydown", window._senren_englishNotesToggleHandler);
+    })();
+
+    // Auto-expand notes if setting is true
+    var notesPanel = document.getElementById("notes");
+    if (notesPanel) {
+      var noteExpandByDefault = senren_englishConfig.notesDefaultExpanded;
+      if (noteExpandByDefault === "true") {
+        if (notesPanel.classList.contains("is-collapsed")) {
+          notesPanel.style.transition = "none";
+          notesPanel.classList.remove("is-collapsed");
+          notesPanel.style.maxHeight = notesPanel.scrollHeight + "px";
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              notesPanel.style.transition = "";
+            });
+          });
+        }
+      }
+    }
+
+    if (sentenceEng) {
+      const expandByDefault = senren_englishConfig.translationDefaultExpanded;
+
+      if (expandByDefault === "true") {
+        sentenceEng.style.transition = "none";
+        sentenceEng.classList.remove("is-collapsed");
+        sentenceEng.style.maxHeight = sentenceEng.scrollHeight + "px";
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            sentenceEng.style.transition = "";
+          });
+        });
+      }
+    }
+
+    applyClickToggleEffect("#formattedSentence", "#sentenceEng");
+
+    const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
+    const pictureContainer = document.querySelector(".picture-container");
+    const hasPicture =
+      pictureContainer &&
+      pictureContainer.querySelector("img:not(.senren_english-filtered-image)");
+    const backdropEnabled = senren_englishConfig.enableBackdropLayout === "1";
+    const backdropStyle = senren_englishConfig.backdropStyle;
+
+    let pictureHoverTriggerSelector;
+
+    if (backdropEnabled && backdropStyle === "0") {
+      let selectors = [
+        ".background-box",
+        ".picture-container",
+        ".sentence-container",
+        ".tags-and-links-wrapper",
+        ".misc-info",
+      ];
+
+      if (window.matchMedia("(max-width: 1050px)").matches) {
+        selectors.unshift(".header");
+      }
+
+      pictureHoverTriggerSelector = selectors.join(", ");
+    } else {
+      pictureHoverTriggerSelector =
+        isTouchDevice || !hasPicture ? ".background-box" : ".picture-container";
+    }
+
+    const miscExpanded = senren_englishConfig.miscInfoDefaultExpanded;
+    const miscInfoEl = document.querySelector(".misc-info");
+
+    if (miscInfoEl) {
+      if (miscInfoEl.textContent.trim() !== "") {
+        miscInfoEl.classList.add("has-content");
+      } else {
+        miscInfoEl.classList.remove("has-content");
+      }
+    }
+
+    if (miscExpanded !== "true") {
+      applyHoverEffect(pictureHoverTriggerSelector, ".misc-info", 10);
+    }
+  }
+
+  // Adjusts word size based on character length
+  function dynamicWordSize() {
+    const wordElement = document.querySelector("#word");
+    if (wordElement) {
+      const wordSpan = wordElement.querySelector("span");
+      if (wordSpan) {
+        const stackElement = wordSpan.querySelector(".word-reading-stack, ruby");
+        const baseElement = stackElement?.querySelector(".ruby-base-word");
+        const content = stackElement
+          ? (baseElement || stackElement.firstChild).textContent.trim()
+          : wordSpan.textContent.trim();
+        const contentLength = content.length;
+
+        const classNumber = Math.min(contentLength, 9);
+        wordElement.classList.add(`length-${classNumber}`);
+      }
+    }
+  }
+
+  // Enables NSFW options
+  function nsfw() {
+    if (
+      senren_englishConfig.muteNsfwAudio !== "true" &&
+      senren_englishConfig.blurNsfwPicture !== "true"
+    )
+      return;
+
+    if (!window.english_IS_NSFW) return;
+
+    if (senren_englishConfig.muteNsfwAudio === "true") {
+      const wordAudioButton = document.querySelector(
+        ".audio .soundLink, .audio .replaybutton, .audio .replay-button",
+      );
+      if (wordAudioButton) {
+        wordAudioButton.click();
+      }
+    }
+
+    if (senren_englishConfig.blurNsfwPicture === "true") {
+      document.querySelectorAll(".picture-container").forEach((container) => {
+        if (container.classList.contains("nsfw")) {
+          container.querySelectorAll("img").forEach((img) => {
+            img.addEventListener("click", () => {
+              img.classList.add("clicked");
+            });
+          });
+        }
+      });
+    }
+  }
+
+  // Mutes the sentence audio playback based on CSS variables
+  function muteSentence() {
+    if (senren_englishConfig.muteSentenceAudio !== "true") return;
+
+    const muteAudio = senren_englishConfig.muteSentenceAudio;
+
+    if (muteAudio === "true") {
+      const wordAudioButton = document.querySelector(
+        ".audio .soundLink, .audio .replaybutton, .audio .replay-button",
+      );
+
+      if (wordAudioButton) {
+        wordAudioButton.click();
+      }
+    }
+  }
+
+  // Adds titles to dictionaries
+  function dictionaryTitle() {
+    let processedDictionaries = new Set();
+
+    document.querySelectorAll(".yomitan-glossary li").forEach((li) => {
+      let dictionaryName = li.getAttribute("data-dictionary");
+      if (dictionaryName && !processedDictionaries.has(dictionaryName)) {
+        let titleElement = document.createElement("div");
+        titleElement.textContent = dictionaryName;
+        titleElement.classList.add("dictionary-title");
+        li.prepend(titleElement);
+        processedDictionaries.add(dictionaryName);
+      }
+    });
+  }
+
+  // Splits tags into separate elements
+  function splitTags() {
+    const tagsContainer = english_ELS.tagsContainer;
+    if (tagsContainer) {
+      const tagsAttr = document.querySelector(".back")?.getAttribute("data-tags") || "";
+      const tags = tagsAttr.split(" ");
+      const elements = tags.map((tag) => {
+        const tagElem = document.createElement("div");
+        tagElem.className = "tags";
+        tagElem.innerText = tag;
+        return tagElem;
+      });
+      tagsContainer.replaceChildren(...elements);
+    }
+  }
+
+  var senren_englishPitchClassNames = [
+    "heiban",
+    "atamadaka",
+    "nakadaka",
+    "odaka",
+    "kifuku",
+  ];
+
+  function getDirectListItems(container) {
+    if (!container) return [];
+    const lists = Array.from(container.querySelectorAll("ol, ul")).filter(
+      (list) => !container.contains(list.parentElement.closest("ol, ul")),
+    );
+    return lists.flatMap((list) =>
+      Array.from(list.children).filter((child) => child.matches("li")),
+    );
+  }
+
+  function getWordReadingElement(stackElement) {
+    return stackElement?.querySelector(".word-reading") ||
+      stackElement?.querySelector("rt") || null;
+  }
+
+  function normalizeReadingText(element) {
+    const copy = element?.cloneNode(true);
+    copy?.querySelectorAll("style, script, rt, rp").forEach((node) => node.remove());
+    if (copy) normalizeNasalAnnotations(copy);
+    return (copy?.textContent || "").normalize("NFC").replace(/\s/g, "");
+  }
+
+  function normalizeNasalAnnotations(copy) {
+    let markerCount = 0;
+    copy.querySelectorAll("span").forEach((mark) => {
+      if (mark.textContent !== "゚") return;
+      const wrapper = mark.parentElement;
+      const kana = mark.previousElementSibling;
+      const voiced = kana?.textContent.normalize("NFC").replace(/[かきくけこカキクケコ]/g,
+        (character) => String.fromCharCode(character.charCodeAt(0) + 1));
+      if (!/^[がぎぐげごガギグゲゴ]$/.test(voiced || "")) return;
+      const circle = Array.from(wrapper.children).find((node) =>
+        node.classList.contains("ic-7946e4873e") ||
+        (node.style.borderRadius === "50%" && node.style.borderStyle === "solid"));
+      if (!circle) return;
+      // Yomitan encodes nasal が as a nested か + hidden handakuten + circle.
+      // Only the comparison copy changes; the selected field markup stays intact.
+      kana.textContent = voiced;
+      mark.remove();
+      circle.remove();
+      wrapper.replaceWith(...wrapper.childNodes);
+      markerCount++;
+    });
+    return markerCount;
+  }
+
+  function getReadingMorae(element) {
+    return normalizeReadingText(element).replace(/[゙゚]/g, "").match(english_REGEX.MORA) || [];
+  }
+
+  // Explicit downstep positions are authoritative. Imported pitch classes are
+  // used only when no usable position was supplied by the note.
+  function getPitchType(number, readingElement) {
+    const moraCount = getReadingMorae(readingElement).length;
+    if (!moraCount || !Number.isInteger(number) || number < 0) return "unknown";
+    if (number === 0) return "heiban";
+    if (number === 1) return "atamadaka";
+    if (number > moraCount) return "unknown";
+    if (number === moraCount) return moraCount > 1 ? "odaka" : "atamadaka";
+    return number > 1 ? "nakadaka" : "unknown";
+  }
+  window.senren_englishGetPitchType = getPitchType;
+
+  function getPitchPosition(element) {
+    const match = element?.textContent.match(/-?\d+/);
+    if (!match) return null;
+    const position = parseInt(match[0], 10);
+    return position >= 0 ? position : null;
+  }
+
+  function isDevoicingMarker(element) {
+    // The extracted-media class identifies the circle before its CSS loads.
+    return element.classList.contains("ic-3c7893fbde") ||
+      element.style.borderStyle === "dotted" ||
+      getComputedStyle(element).borderTopStyle === "dotted";
+  }
+
+  function getPitchGraphSignature(readingItem) {
+    const copy = readingItem.cloneNode(true);
+    const originalSpans = readingItem.querySelectorAll("span");
+    let markerCount = 0;
+    copy.querySelectorAll("span").forEach((span, index) => {
+      if (isDevoicingMarker(originalSpans[index])) {
+        span.remove();
+        markerCount++;
+      }
+    });
+    markerCount += normalizeNasalAnnotations(copy);
+    copy.querySelectorAll("style, script").forEach((node) => node.remove());
+    return {
+      graphSignature: copy.innerHTML.normalize("NFC").replace(/>\s+</g, "><").trim(),
+      markerCount,
+    };
+  }
+
+  function getReadingContext() {
+    const word = english_ELS.word;
+    const mainSpan = word?.querySelector(":scope > span");
+    const stack = mainSpan?.querySelector(".word-reading-stack, ruby");
+    return {
+      word,
+      mainSpan,
+      stack,
+      base: stack?.querySelector(".ruby-base-word") || null,
+      reading: getWordReadingElement(stack),
+      position: english_ELS.position,
+      categories: mainSpan?.querySelector("#categories") || null,
+      sentence: english_ELS.formattedSentence,
+    };
+  }
+
+  function collectReadingEntries(context) {
+    const readingItems = getDirectListItems(context.reading);
+    const positionItems = getDirectListItems(context.position);
+    const aligned =
+      readingItems.length > 0 && positionItems.length === readingItems.length;
+    const importedTypes = (context.categories?.textContent || "")
+      .split(",")
+      .map((value) => value.trim());
+    const displayItems = readingItems.length
+      ? readingItems
+      : normalizeReadingText(context.reading)
+        ? [context.reading]
+        : [];
+
+    return displayItems.map((element, index) => ({
+      element,
+      positionElement: aligned ? positionItems[index] : null,
+      position: aligned
+        ? getPitchPosition(positionItems[index])
+        : displayItems.length === 1 && positionItems.length <= 1
+          ? getPitchPosition(context.position)
+          : null,
+      readingText: normalizeReadingText(element),
+      importedType: importedTypes.length === 1 ? importedTypes[0] : importedTypes[index],
+      // Read styles for all entries before removing duplicates invalidates layout.
+      ...getPitchGraphSignature(element),
+    }));
+  }
+
+  function deduplicateReadingEntries(context) {
+    const entries = collectReadingEntries(context);
+    const seen = new Map();
+    const uniqueEntries = [];
+
+    entries.forEach((entry) => {
+      const signature = JSON.stringify([
+        entry.readingText,
+        entry.position,
+        Number.isInteger(entry.position) ? null : entry.importedType,
+        entry.graphSignature,
+      ]);
+
+      const previous = seen.get(signature);
+      if (previous) {
+        const preferCurrent = entry.markerCount < previous.markerCount;
+        const discarded = preferCurrent ? previous : entry;
+        if (preferCurrent) {
+          previous.element.replaceWith(entry.element);
+          if (previous.positionElement && entry.positionElement) {
+            previous.positionElement.replaceWith(entry.positionElement);
+          }
+        }
+        if (discarded.element !== context.reading) discarded.element.remove();
+        discarded.positionElement?.remove();
+        if (preferCurrent) {
+          uniqueEntries[uniqueEntries.indexOf(previous)] = entry;
+          seen.set(signature, entry);
+        }
+        return;
+      }
+
+      seen.set(signature, entry);
+      uniqueEntries.push(entry);
+    });
+
+    uniqueEntries.forEach((entry) => {
+      if (entry.element !== context.reading) {
+        entry.element.parentElement.classList.add("pitch-readings-ready");
+      }
+    });
+    context.reading?.classList.add("reading-ready");
+    context.reading?.classList.toggle("reading-single", uniqueEntries.length === 1);
+    return uniqueEntries;
+  }
+
+  function cleanCommaSeparatedClasses(elements) {
+    elements.filter(Boolean).forEach((element) => {
+      Array.from(element.classList).forEach((className) => {
+        if (!className.includes(",")) return;
+        element.classList.remove(className);
+        const primaryClass = className.split(",")[0].trim();
+        if (primaryClass) element.classList.add(primaryClass);
+      });
+    });
+  }
+
+  function resolveEntryPitchTypes(context, entries) {
+    entries.forEach((entry) => {
+      entry.element.classList.add("pitch-reading");
+      entry.element.classList.remove(...senren_englishPitchClassNames);
+      const calculated = Number.isInteger(entry.position)
+        ? getPitchType(entry.position, entry.element)
+        : "unknown";
+      entry.pitchType =
+        calculated !== "unknown" ? calculated : entry.importedType || "unknown";
+      if (senren_englishPitchClassNames.includes(entry.pitchType)) {
+        entry.element.classList.add(entry.pitchType);
+      }
+    });
+  }
+
+  function formatPitchMetadata(context, entries) {
+    const positionItems = getDirectListItems(context.position);
+    const fallbackNumbers = (positionItems.length ? positionItems : [context.position])
+      .flatMap((element) => Array.from(
+        element?.textContent.matchAll(/-?\d+/g) || [],
+        (match) => parseInt(match[0], 10),
+      )).filter((position) => position >= 0);
+    const numbers = [...new Set(fallbackNumbers)];
+    const resolvedTypes = numbers.map((number) => {
+      const entry = entries.find((entry) => entry.position === number) ||
+        (entries.length === 1 ? entries[0] : null);
+      const calculated = entry ? getPitchType(number, entry.element) : "unknown";
+      return calculated !== "unknown"
+        ? calculated
+        : entry?.pitchType || "unknown";
+    });
+
+    if (context.position) {
+      context.position.replaceChildren(
+        ...numbers.flatMap((number, index) => {
+          const numberElement = document.createElement("span");
+          numberElement.className = `pitch-number ${resolvedTypes[index]}`;
+          numberElement.textContent = String(number);
+          if (index === numbers.length - 1) return [numberElement];
+          return [numberElement, document.createTextNode("・")];
+        }),
+      );
+      context.position.dataset.cleaned = "true";
+    }
+
+    if (context.categories && resolvedTypes.length) {
+      context.categories.dataset.fullCategories = resolvedTypes.join("<br>");
+      context.categories.textContent = resolvedTypes[0];
+      if (!context.position?.dataset.categoryHoverBound) {
+        context.position?.addEventListener("mouseenter", () => {
+          context.categories.innerHTML = context.categories.dataset.fullCategories;
+        });
+        if (context.position) context.position.dataset.categoryHoverBound = "true";
+      }
+    }
+
+    const pitchTypes = new Set(
+      [...resolvedTypes, ...entries.map((entry) => entry.pitchType)]
+        .filter((pitchType) => senren_englishPitchClassNames.includes(pitchType)),
+    );
+    const multiplePitchTypes = pitchTypes.size > 1;
+    context.mainSpan?.classList.toggle(
+      "multiple-pitch-readings",
+      multiplePitchTypes,
+    );
+    context.sentence?.classList.toggle(
+      "multiple-pitch-readings",
+      multiplePitchTypes,
+    );
+
+    const primaryType = entries[0]?.pitchType;
+    if (senren_englishPitchClassNames.includes(primaryType)) {
+      [context.mainSpan, context.sentence].filter(Boolean).forEach((element) => {
+        element.classList.remove(...senren_englishPitchClassNames);
+        element.classList.add(primaryType);
+      });
+    }
+  }
+
+  function restoreKanaReading(context) {
+    if (!context.word?.classList.contains("reading-is-word")) return;
+    const originalBaseHtml =
+      context.stack._senren_englishOriginalBaseHtml ??
+      context.stack.dataset.originalBaseHtml;
+    if (originalBaseHtml !== undefined) context.base.innerHTML = originalBaseHtml;
+    context.reading.style.display = context.stack._senren_englishOriginalReadingDisplay;
+    context.word.classList.remove("reading-is-word");
+  }
+
+  function applyKanaReading(context, entries) {
+    restoreKanaReading(context);
+    if (senren_englishConfig.english_noDuplicateKana !== "true" || entries.length !== 1) return;
+    if (context.base.querySelector("img")) return;
+
+    const wordText = normalizeReadingText(context.base).replace(/[（(].*?[）)]$/, "");
+    const toHiragana = (text) => text.replace(/[ァ-ヶ]/g,
+      (kana) => String.fromCharCode(kana.charCodeAt(0) - 0x60));
+    if (!english_REGEX.KANA_ONLY.test(wordText) ||
+        toHiragana(wordText) !== toHiragana(entries[0].readingText)) return;
+
+    context.stack._senren_englishOriginalBaseHtml = context.base.innerHTML;
+    context.stack._senren_englishOriginalReadingDisplay = context.reading.style.display;
+    context.base.innerHTML = entries[0].element.innerHTML;
+    context.reading.style.display = "none";
+    context.word.classList.add("reading-is-word");
+  }
+
+  function english_renderBackReading() {}
+
+  // Compatibility entry points used by settings and the kanji-hover module.
+  window.english_renderBackReading = english_renderBackReading;
+  window.english_noDuplicateKana = english_renderBackReading;
+  window.senren_englishDeduplicatePitchReadings = (stackElement, positionElement) => {
+    const context = getReadingContext();
+    if (stackElement) {
+      context.stack = stackElement;
+      context.reading = getWordReadingElement(stackElement);
+    }
+    if (positionElement) context.position = positionElement;
+    const entries = context.stack?._senren_englishReadingEntries || deduplicateReadingEntries(context);
+    resolveEntryPitchTypes(context, entries);
+    return new Set(entries.map((entry) => entry.pitchType));
+  };
+
+  // Highlight the target word in the furigana sentence
+  function highlightFurigana() {
+    const sentence = document.getElementById("hiddenSentence")?.innerHTML || "";
+    let sentenceFurigana = document.getElementById("hiddenSentenceFurigana")?.innerHTML || "";
+
+    if (!sentenceFurigana.trim()) {
+      english_ELS.formattedSentence.innerHTML = sentence;
+      return;
+    }
+
+    sentenceFurigana = sentenceFurigana.replace(
+      /([\u3005\u4e00-\u9faf]+)\[([^\]]+)\]/g,
+      "<ruby><rb>$1</rb><rt>$2</rt></ruby>",
+    );
+
+    sentenceFurigana = sentenceFurigana.replace(
+      english_REGEX.RUBY_RT,
+      "<ruby><rb>$1</rb><rt>$2</rt></ruby>",
+    );
+
+    let cleanedFurigana = sentenceFurigana
+      .replace(/<ruby><rb>([。、！？！？])<\/rb><rt>.*?<\/rt><\/ruby>/g, "$1")
+      .replace(/<ruby>([。、！？！？])<rt>.*?<\/rt><\/ruby>/g, "$1");
+
+    if (
+      cleanedFurigana.includes('<span class="highlight">') ||
+      cleanedFurigana.includes("<b>")
+    ) {
+      english_ELS.formattedSentence.innerHTML = cleanedFurigana;
+      return;
+    }
+
+    const highlightedWords = [];
+    let match;
+    while ((match = english_REGEX.HIGHLIGHT.exec(sentence)) !== null) {
+      highlightedWords.push(match[1]);
+    }
+
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = cleanedFurigana;
+
+    const allNodes = [];
+
+    function collectTextAndRubyNodes(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.textContent.length > 0) {
+          allNodes.push({ type: "text", node: node });
+        }
+      } else if (node.tagName === "RUBY") {
+        allNodes.push({ type: "ruby", node: node });
+      } else {
+        for (let i = 0; i < node.childNodes.length; i++) {
+          collectTextAndRubyNodes(node.childNodes[i]);
+        }
+      }
+    }
+
+    collectTextAndRubyNodes(tempDiv);
+
+    let plainText = "";
+    const nodePositions = [];
+
+    allNodes.forEach((item) => {
+      let text;
+      if (item.type === "text") {
+        text = item.node.textContent;
+      } else {
+        const rb = item.node.querySelector("rb") || item.node.firstChild;
+        text = rb.textContent;
+      }
+
+      nodePositions.push({
+        node: item.node,
+        type: item.type,
+        start: plainText.length,
+        end: plainText.length + text.length,
+      });
+
+      plainText += text;
+    });
+
+    highlightedWords.forEach((word) => {
+      let searchStartIndex = 0;
+      let wordStart;
+
+      while ((wordStart = plainText.indexOf(word, searchStartIndex)) !== -1) {
+        const wordEnd = wordStart + word.length;
+
+        const affectedNodes = nodePositions.filter(
+          (pos) => pos.start < wordEnd && pos.end > wordStart,
+        );
+
+        affectedNodes.forEach((pos) => {
+          const node = pos.node;
+          if (!node.parentNode) return;
+
+          const relativeStart = Math.max(0, wordStart - pos.start);
+          let relativeEnd = Math.min(pos.end - pos.start, wordEnd - pos.start);
+
+          if (pos.type === "ruby") {
+            const rb = node.querySelector("rb") || node.firstChild;
+            relativeEnd = Math.min(relativeEnd, rb.textContent.length);
+          } else {
+            relativeEnd = Math.min(relativeEnd, node.textContent.length);
+          }
+
+          if (pos.start >= wordStart && pos.end <= wordEnd) {
+            const wrapper = document.createElement("span");
+            wrapper.className = "highlight";
+
+            if (pos.type === "ruby") {
+              const clone = node.cloneNode(true);
+              wrapper.appendChild(clone);
+              node.parentNode.replaceChild(wrapper, node);
+            } else {
+              wrapper.textContent = node.textContent;
+              node.parentNode.replaceChild(wrapper, node);
+            }
+          } else {
+            if (pos.type === "ruby") {
+              const ruby = node;
+              const rb = ruby.querySelector("rb") || ruby.firstChild;
+              const rt = ruby.querySelector("rt");
+              if (!rb || !rt) return;
+
+              const baseText = rb.textContent;
+              const rtText = rt.textContent;
+
+              let newHTML = "";
+
+              if (relativeStart > 0) {
+                const subRb = baseText.substring(0, relativeStart);
+                const subRtLen = Math.round(
+                  (rtText.length * relativeStart) / baseText.length,
+                );
+                const subRt = rtText.substring(0, subRtLen);
+                newHTML += `<ruby><rb>${subRb}</rb><rt>${subRt}</rt></ruby>`;
+              }
+
+              const midRb = baseText.substring(relativeStart, relativeEnd);
+              const startRtIdx = Math.round(
+                (rtText.length * relativeStart) / baseText.length,
+              );
+              const endRtIdx = Math.round(
+                (rtText.length * relativeEnd) / baseText.length,
+              );
+              const midRt = rtText.substring(startRtIdx, endRtIdx);
+
+              newHTML += `<span class="highlight"><ruby><rb>${midRb}</rb><rt>${midRt}</rt></ruby></span>`;
+
+              if (relativeEnd < baseText.length) {
+                const subRb = baseText.substring(relativeEnd);
+                const subRt = rtText.substring(endRtIdx);
+                newHTML += `<ruby><rb>${subRb}</rb><rt>${subRt}</rt></ruby>`;
+              }
+
+              const span = document.createElement("span");
+              span.innerHTML = newHTML;
+              ruby.parentNode.replaceChild(span, ruby);
+            } else {
+              const text = node.textContent;
+              const beforeText = text.substring(0, relativeStart);
+              const highlightedText = text.substring(
+                relativeStart,
+                relativeEnd,
+              );
+              const afterText = text.substring(relativeEnd);
+
+              const fragment = document.createDocumentFragment();
+              if (beforeText)
+                fragment.appendChild(document.createTextNode(beforeText));
+
+              const hlSpan = document.createElement("span");
+              hlSpan.className = "highlight";
+              hlSpan.textContent = highlightedText;
+              fragment.appendChild(hlSpan);
+
+              if (afterText)
+                fragment.appendChild(document.createTextNode(afterText));
+
+              node.parentNode.replaceChild(fragment, node);
+            }
+          }
+        });
+        searchStartIndex = wordEnd;
+      }
+    });
+
+    english_ELS.formattedSentence.innerHTML = tempDiv.innerHTML;
+  }
+
+  // Alternative pitch styling based on CSS variables
+  function english_alternativePitchStyle() {
+    const rootElement = document.documentElement;
+    const wordElement = document.getElementById("word");
+    if (wordElement) {
+      const pitchStyleValue = senren_englishConfig.pitchStyle;
+      wordElement.classList.toggle("alt", pitchStyleValue === "alt");
+
+      const pitchColorsValue = senren_englishConfig.pitchColors;
+      wordElement.classList.toggle("colors", pitchColorsValue === "false");
+    }
+
+    const sentenceElement = document.getElementById("formattedSentence");
+    if (sentenceElement) {
+      const sentenceHighlightValue = senren_englishConfig.sentencePitchHighlight;
+      sentenceElement.classList.toggle(
+        "alt-highlight",
+        sentenceHighlightValue === "true",
+      );
+    }
+  }
+
+  // Merge entries from the same dictionary
+  function consolidateYomitanGlossaryEntries() {
+    const glossaryOuterDiv = english_ELS.glossary;
+    if (!glossaryOuterDiv) return;
+
+    const glossaryBox = glossaryOuterDiv.querySelector(".glossary-box");
+    if (!glossaryBox) return;
+
+    const glossarySpan = glossaryBox.querySelector("span");
+    if (!glossarySpan) return;
+
+    if (glossarySpan.dataset.consolidated === "true") return;
+
+    // Some exports close the dictionary entry before its definition list.
+    glossarySpan.querySelectorAll("li[data-dictionary]").forEach((entry) => {
+      if (!entry.nextElementSibling?.matches("li:not([data-dictionary])")) return;
+      const continuation = document.createElement("ul");
+      while (entry.nextElementSibling?.matches("li:not([data-dictionary])")) {
+        continuation.appendChild(entry.nextElementSibling);
+      }
+      entry.appendChild(continuation);
+    });
+
+    const yomitanGlossaryDivs = glossarySpan.querySelectorAll(
+      "div.yomitan-glossary",
+    );
+    if (yomitanGlossaryDivs.length === 0) return;
+
+    let consolidationHappened = false;
+
+    yomitanGlossaryDivs.forEach((ygDiv) => {
+      const olElement = ygDiv.querySelector("ol");
+      if (!olElement) return;
+
+      const listItems = Array.from(
+        olElement.querySelectorAll("li[data-dictionary]"),
+      );
+      if (listItems.length === 0) return;
+
+      const groupedItems = {};
+      listItems.forEach((li) => {
+        const dictName = li.getAttribute("data-dictionary");
+        if (!dictName) return;
+
+        if (!groupedItems[dictName]) {
+          groupedItems[dictName] = [];
+        }
+        groupedItems[dictName].push(li);
+      });
+
+      Object.keys(groupedItems).forEach((dictName) => {
+        const items = groupedItems[dictName];
+
+        if (items.length > 1) {
+          const firstItem = items[0];
+          const consolidatedLi = firstItem.cloneNode(false);
+          const fragment = document.createDocumentFragment();
+
+          items.forEach((li, index) => {
+            while (li.firstChild) {
+              fragment.appendChild(li.firstChild);
+            }
+            if (index < items.length - 1) {
+              const hr = document.createElement("hr");
+              hr.className = "consolidated-entry-separator";
+              fragment.appendChild(hr);
+            }
+          });
+
+          consolidatedLi.appendChild(fragment);
+          olElement.replaceChild(consolidatedLi, firstItem);
+
+          for (let i = 1; i < items.length; i++) {
+            olElement.removeChild(items[i]);
+          }
+
+          consolidationHappened = true;
+        }
+      });
+    });
+
+    if (consolidationHappened) {
+      glossarySpan.dataset.consolidated = "true";
+    }
+  }
+
+  // Collapses long dictionary entries and adds a clickable fade-out.
+  function collapseDictionary(container) {
+    const isCollapsedEnabled = senren_englishConfig.dictionaryCollapse;
+    if (isCollapsedEnabled !== "1") {
+      return;
+    }
+
+    if (!container || container.dataset.expanded === "true") {
+      return;
+    }
+
+    const maxHeight = parseInt(senren_englishConfig.dictionaryMaxHeight, 10);
+
+    const oldFade = container.querySelector(".fade-to-show-more");
+    if (oldFade) oldFade.remove();
+    container.classList.remove("is-collapsed");
+
+    if (container.scrollHeight > maxHeight) {
+      container.classList.add("is-collapsed");
+
+      const fadeElement = document.createElement("div");
+      fadeElement.className = "fade-to-show-more tappable";
+      container.appendChild(fadeElement);
+
+      fadeElement.addEventListener("click", (e) => {
+        e.stopPropagation();
+        container.classList.remove("is-collapsed");
+        container.dataset.expanded = "true";
+        fadeElement.remove();
+      });
+    }
+  }
+
+  // Groups text, audio, and images into navigable scenes
+  function enableSceneSwitching() {
+    if (window.currentSceneKeyHandler) {
+      document.removeEventListener("keydown", window.currentSceneKeyHandler);
+      window.currentSceneKeyHandler = null;
+    }
+
+    const audioContainer = english_ELS.audioContainer;
+    const audioParts = audioContainer
+      ? Array.from(audioContainer.children).filter((el) => el.tagName !== "BR")
+      : [];
+
+    if (audioParts.length <= 1) {
+      return;
+    }
+
+    const baseWaitTime = 100;
+    const timePerChar = 150;
+
+    const wordEl = english_ELS.word;
+    let charCount = 5;
+
+    if (wordEl) {
+      const rt = wordEl.querySelector(".word-reading, rt");
+      const targetElement =
+        rt && rt.querySelector("li") ? rt.querySelector("li") : rt || wordEl;
+
+      let rawText = targetElement.textContent;
+      let cleanedText = rawText.replace(english_REGEX.KANA_MODIFIERS, "");
+
+      cleanedText = cleanedText.replace(
+        /[ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ]/g,
+        "",
+      );
+
+      let effectiveCount = cleanedText.length;
+
+      const narrowMatches = cleanedText.match(english_REGEX.NARROW_VOWELS);
+
+      if (narrowMatches) {
+        effectiveCount -= narrowMatches.length * 0.3;
+      }
+
+      charCount = Math.round(effectiveCount);
+
+      if (charCount < 1) charCount = 1;
+    }
+
+    let SENTENCE_DELAY;
+
+    const hasWordAudio = !!english_ELS.wordAudioBtn;
+
+    if (!hasWordAudio) {
+      SENTENCE_DELAY = 0;
+    } else {
+      if (charCount === 2) SENTENCE_DELAY = 550;
+      else if (charCount === 3) SENTENCE_DELAY = 650;
+      else if (charCount === 4) SENTENCE_DELAY = 700;
+      else if (charCount === 5) SENTENCE_DELAY = 850;
+      else if (charCount === 6) SENTENCE_DELAY = 1000;
+      else if (charCount === 7) SENTENCE_DELAY = 1080;
+      else if (charCount === 8) SENTENCE_DELAY = 1150;
+      else SENTENCE_DELAY = baseWaitTime + charCount * timePerChar;
+    }
+
+    const backContainer = english_ELS.back;
+    let newArrows = [];
+
+    if (backContainer) {
+      let arrowLeft = backContainer.querySelector(".sentence-nav.left");
+      let arrowRight = backContainer.querySelector(".sentence-nav.right");
+
+      if (!arrowLeft) {
+        arrowLeft = document.createElement("div");
+        arrowLeft.className = "sentence-nav left";
+        backContainer.appendChild(arrowLeft);
+      }
+
+      if (!arrowRight) {
+        arrowRight = document.createElement("div");
+        arrowRight.className = "sentence-nav right";
+        backContainer.appendChild(arrowRight);
+      }
+
+      newArrows = [arrowLeft, arrowRight];
+    } else {
+      return;
+    }
+
+    // Sentence Group
+    const sentenceContainer = english_ELS.formattedSentence;
+    if (
+      sentenceContainer &&
+      !sentenceContainer.getAttribute("data-split-done")
+    ) {
+      const groupWrappers = Array.from(
+        sentenceContainer.querySelectorAll(".group"),
+      ).filter((el) => el.textContent.trim().length > 0);
+
+      if (groupWrappers.length > 0) {
+        const parts = groupWrappers.map((el) => el.outerHTML);
+        sentenceContainer.innerHTML = "";
+        parts.forEach((partHTML) => {
+          const div = document.createElement("div");
+          div.classList.add("split-sentence");
+          div.innerHTML = partHTML;
+          div.style.display = "none";
+          sentenceContainer.appendChild(div);
+        });
+        sentenceContainer.setAttribute("data-split-done", "true");
+      }
+    }
+
+    // Sentence Eng Group
+    const engContainer = english_ELS.sentenceEng;
+    if (engContainer && !engContainer.getAttribute("data-split-done")) {
+      const allSpans = Array.from(engContainer.querySelectorAll("span"));
+      const groupWrappers = allSpans.filter((el) => {
+        return el.className.split(/\s+/).some((c) => /^group\d*$/.test(c));
+      });
+
+      if (groupWrappers.length > 0) {
+        engContainer.innerHTML = "";
+
+        groupWrappers.forEach((el) => {
+          const div = document.createElement("div");
+          div.classList.add("split-sentence-eng");
+          div.innerHTML = el.outerHTML;
+          div.style.display = "none";
+
+          const match = el.className.match(/group(\d+)/);
+          if (match) {
+            div.setAttribute("data-target-index", parseInt(match[1], 10) - 1);
+          }
+
+          engContainer.appendChild(div);
+        });
+        engContainer.setAttribute("data-split-done", "true");
+      }
+    }
+
+    // Misc Info Group
+    const miscInfoContainer = english_ELS.miscInfo;
+
+    if (
+      miscInfoContainer &&
+      !miscInfoContainer.getAttribute("data-split-done")
+    ) {
+      const allSpans = Array.from(miscInfoContainer.querySelectorAll("span"));
+      const groupWrappers = allSpans.filter((el) => {
+        return el.className.split(/\s+/).some((c) => /^group\d*$/.test(c));
+      });
+
+      if (groupWrappers.length > 0) {
+        miscInfoContainer.innerHTML = "";
+
+        groupWrappers.forEach((el) => {
+          const div = document.createElement("div");
+          div.classList.add("split-misc-info");
+          div.innerHTML = el.outerHTML;
+          div.style.display = "none";
+
+          const match = el.className.match(/group(\d+)/);
+          if (match) {
+            div.setAttribute("data-target-index", parseInt(match[1], 10) - 1);
+          }
+
+          miscInfoContainer.appendChild(div);
+        });
+        miscInfoContainer.setAttribute("data-split-done", "true");
+      }
+    }
+
+    const sentenceParts =
+      english_ELS.formattedSentence?.querySelectorAll(".split-sentence") || [];
+    const engParts =
+      english_ELS.sentenceEng?.querySelectorAll(".split-sentence-eng") || [];
+    const miscInfoParts =
+      english_ELS.miscInfo?.querySelectorAll(".split-misc-info") || [];
+
+    let totalSlides = 1;
+    if (audioParts.length > 0) {
+      totalSlides = audioParts.length;
+    }
+
+    // Picture Group — build scene-to-image mapping from group classes
+    const pictureContainer = english_ELS.pictureContainer;
+    var sceneToImageIndex = null; // null = no group classes, use original behavior
+    if (
+      pictureContainer &&
+      !pictureContainer.getAttribute("data-picture-mapped")
+    ) {
+      const allChildren = Array.from(pictureContainer.children);
+      const groupWrappers = allChildren.filter((el) => {
+        return (
+          el.className &&
+          el.className.split(/\s+/).some((c) => /^group\d*$/.test(c))
+        );
+      });
+
+      if (groupWrappers.length > 0) {
+        // 1) Build mapping BEFORE unwrapping: scene index → image src
+        var sceneToSrc = {};
+        groupWrappers.forEach((wrapper) => {
+          var cls = wrapper.className.match(/group(\d+)/);
+          if (cls) {
+            var sceneIdx = parseInt(cls[1], 10) - 1;
+            var img = wrapper.querySelector("img");
+            if (img) sceneToSrc[sceneIdx] = img.getAttribute("src");
+          }
+        });
+
+        // 2) Unwrap: move imgs out of group spans into container directly
+        var insertRef = pictureContainer.querySelector(
+          ".nav-arrow, .toggle-image-visibility",
+        );
+        groupWrappers.forEach((wrapper) => {
+          var imgs = Array.from(wrapper.querySelectorAll("img"));
+          imgs.forEach((img) => {
+            pictureContainer.insertBefore(img, insertRef);
+          });
+          wrapper.remove();
+        });
+
+        // 3) Build final mapping: scene index → image DOM index
+        var allImgs = Array.from(pictureContainer.querySelectorAll("img"));
+        sceneToImageIndex = {};
+        for (var sceneIdx in sceneToSrc) {
+          var src = sceneToSrc[sceneIdx];
+          var imgIdx = allImgs.findIndex(
+            (img) => img.getAttribute("src") === src,
+          );
+          if (imgIdx !== -1) sceneToImageIndex[sceneIdx] = imgIdx;
+        }
+
+        pictureContainer.setAttribute("data-picture-mapped", "true");
+      }
+    }
+
+    let currentIndex = 0;
+
+    function playActiveAudio() {
+      if (senren_englishConfig.muteSentenceAudio === "true") return;
+      if (audioParts.length === 0) return;
+
+      document.querySelectorAll("audio").forEach((a) => {
+        try {
+          a.pause();
+          a.currentTime = 0;
+        } catch (e) {}
+      });
+
+      let audioToPlay = null;
+      if (audioParts.length === 1) {
+        audioToPlay = audioParts[0];
+      } else if (audioParts[currentIndex]) {
+        audioToPlay = audioParts[currentIndex];
+      }
+
+      if (audioToPlay) {
+        audioToPlay.click();
+      }
+    }
+
+    let replayTimeout;
+
+    const handleSceneShortcuts = (e) => {
+      if (
+        document.activeElement &&
+        ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)
+      )
+        return;
+      if (document.querySelector(".notes-legend-overlay.active")) return;
+      if (
+        typeof lightbox !== "undefined" &&
+        lightbox.classList.contains("active")
+      )
+        return;
+
+      const cssVal = senren_englishConfig.sceneReplayShortcutKey;
+
+      const replayConfig = english_parseKeyConfig(cssVal) || {
+        key: "w",
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      };
+
+      if (english_isKeyMatch(e, replayConfig)) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (replayTimeout) clearTimeout(replayTimeout);
+        document.querySelectorAll("audio").forEach((a) => {
+          try {
+            a.pause();
+            a.currentTime = 0;
+          } catch (e) {}
+        });
+
+        const wordAudioBtn = english_ELS.wordAudioBtn;
+        if (wordAudioBtn) {
+          wordAudioBtn.click();
+        }
+
+        const replayLoadOffset = 200;
+        const delay = wordAudioBtn ? SENTENCE_DELAY + replayLoadOffset : 0;
+
+        replayTimeout = setTimeout(() => {
+          updateDisplay(true);
+        }, delay);
+      }
+
+      if (e.ctrlKey) {
+        if (e.key === "j") {
+          e.preventDefault();
+          e.stopPropagation();
+          currentIndex--;
+          if (currentIndex < 0) currentIndex = totalSlides - 1;
+          updateDisplay(true);
+        } else if (e.key === "k") {
+          e.preventDefault();
+          e.stopPropagation();
+          currentIndex++;
+          if (currentIndex >= totalSlides) currentIndex = 0;
+          updateDisplay(true);
+        }
+      }
+    };
+
+    window.currentSceneKeyHandler = handleSceneShortcuts;
+    document.addEventListener("keydown", handleSceneShortcuts);
+
+    function updateDisplay(shouldPlayAudio = false) {
+      const pictureContainer = english_ELS.pictureContainer;
+      if (pictureContainer) {
+        // Show the image mapped to current scene (if group classes were used)
+        if (sceneToImageIndex !== null) {
+          var allImgs = Array.from(pictureContainer.querySelectorAll("img"));
+          if (allImgs.length > 0) {
+            // Determine which image to show for this scene
+            var targetImgIdx = sceneToImageIndex[currentIndex];
+            if (targetImgIdx === undefined) {
+              // No group assigned for this scene → show first image
+              targetImgIdx = 0;
+            }
+
+            if (
+              allImgs[targetImgIdx] &&
+              allImgs[targetImgIdx].classList.contains(
+                "senren_english-filtered-image",
+              )
+            ) {
+              targetImgIdx = allImgs.findIndex(
+                (img) => !img.classList.contains("senren_english-filtered-image"),
+              );
+            }
+            allImgs.forEach((img, i) => {
+              const shouldShow =
+                i === targetImgIdx &&
+                !img.classList.contains("senren_english-filtered-image");
+              img.style.setProperty(
+                "display",
+                shouldShow ? "block" : "none",
+                "important",
+              );
+            });
+          }
+        } else {
+          // Original behavior: index-based, fallback to first image
+          const pictureParts = Array.from(pictureContainer.children).filter(
+            (el) => {
+              if (el.tagName === "BR") return false;
+              if (el.classList.contains("nav-arrow")) return false;
+              if (el.classList.contains("toggle-image-visibility"))
+                return false;
+              if (
+                el.tagName === "IMG" &&
+                el.classList.contains("senren_english-filtered-image")
+              ) {
+                return false;
+              }
+              if (el.querySelector("img.senren_english-filtered-image")) return false;
+              return true;
+            },
+          );
+
+          if (pictureParts.length > 0) {
+            // If current scene index exceeds available images, show first image
+            const targetIndex =
+              currentIndex < pictureParts.length ? currentIndex : 0;
+            pictureParts.forEach((part, i) => {
+              const shouldShow = i === targetIndex;
+              part.style.setProperty(
+                "display",
+                shouldShow ? "block" : "none",
+                "important",
+              );
+            });
+          }
+        }
+      }
+
+      if (sentenceParts.length > 0) {
+        sentenceParts.forEach((part, i) => {
+          const shouldShow = sentenceParts.length === 1 || i === currentIndex;
+          part.style.display = shouldShow ? "block" : "none";
+        });
+      }
+
+      const mainMiscContainer = english_ELS.miscInfo;
+      if (miscInfoParts.length > 0) {
+        let isAnyChildVisible = false;
+
+        miscInfoParts.forEach((part, i) => {
+          let shouldShow = false;
+
+          if (part.hasAttribute("data-target-index")) {
+            const targetIndex = parseInt(
+              part.getAttribute("data-target-index"),
+              10,
+            );
+            shouldShow = targetIndex === currentIndex;
+          } else {
+            if (miscInfoParts.length === 1) {
+              shouldShow = currentIndex === 0;
+            } else {
+              shouldShow = i === currentIndex;
+            }
+          }
+
+          if (shouldShow) {
+            part.style.setProperty("display", "flex", "important");
+            isAnyChildVisible = true;
+          } else {
+            part.style.setProperty("display", "none", "important");
+          }
+        });
+
+        if (mainMiscContainer) {
+          const displayValue = isAnyChildVisible ? "flex" : "none";
+          mainMiscContainer.style.setProperty(
+            "display",
+            displayValue,
+            "important",
+          );
+        }
+      } else if (mainMiscContainer) {
+        if (currentIndex === 0) {
+          mainMiscContainer.style.setProperty("display", "flex", "important");
+        } else {
+          mainMiscContainer.style.setProperty("display", "none", "important");
+        }
+      }
+
+      const mainEngContainer = english_ELS.sentenceEng;
+      if (engParts.length > 0) {
+        engParts.forEach((part, i) => {
+          let shouldShow = false;
+
+          if (part.hasAttribute("data-target-index")) {
+            const targetIndex = parseInt(
+              part.getAttribute("data-target-index"),
+              10,
+            );
+            shouldShow = targetIndex === currentIndex;
+          } else {
+            if (engParts.length === 1) {
+              shouldShow = currentIndex === 0;
+            } else {
+              shouldShow = i === currentIndex;
+            }
+          }
+
+          part.style.display = shouldShow ? "flex" : "none";
+        });
+
+        if (mainEngContainer) mainEngContainer.style.display = "flex";
+      } else if (mainEngContainer) {
+        mainEngContainer.style.display = currentIndex === 0 ? "flex" : "none";
+      }
+
+      if (audioParts.length > 0) {
+        audioParts.forEach((btn, i) => {
+          const shouldShow = audioParts.length === 1 || i === currentIndex;
+          if (shouldShow) {
+            btn.style.setProperty("display", "inline-block", "important");
+          } else {
+            btn.style.setProperty("display", "none", "important");
+          }
+        });
+      }
+
+      if (shouldPlayAudio) {
+        playActiveAudio();
+      }
+    }
+
+    newArrows.forEach((arrow) => {
+      if (arrow.dataset.hasSceneListener) return;
+      arrow.dataset.hasSceneListener = "true";
+
+      arrow.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const direction = arrow.classList.contains("left") ? -1 : 1;
+        currentIndex += direction;
+
+        if (currentIndex >= totalSlides) {
+          currentIndex = 0;
+        } else if (currentIndex < 0) {
+          currentIndex = totalSlides - 1;
+        }
+
+        updateDisplay(true);
+      });
+    });
+
+    window.senren_englishRefreshScenes = () => updateDisplay(false);
+    updateDisplay(false);
+
+    // Do not synthesize sentence-audio playback when the back side loads.
+    // Anki's own replay/autoplay policy should behave the same for single- and
+    // multi-scene cards. Navigation and the replay shortcut still call
+    // updateDisplay(true), which intentionally plays the selected scene.
+  }
+
+  // Toggle Image
+  function enableImageToggle() {
+    const hideBtn = english_ELS.pictureContainer?.querySelector(".hide-btn");
+    const showBtn = document.querySelector(".header .show-btn");
+    const backWrapper = english_ELS.back;
+
+    if (!hideBtn || !showBtn || !backWrapper) return;
+
+    const savedState = localStorage.getItem("senren_englishImageHidden");
+
+    if (savedState === "true") {
+      backWrapper.classList.add("image-removed");
+      showBtn.style.setProperty("display", "flex", "important");
+    } else {
+      backWrapper.classList.remove("image-removed");
+      showBtn.style.setProperty("display", "none", "important");
+    }
+
+    const toggle = () => {
+      backWrapper.classList.toggle("image-removed");
+      const isHidden = backWrapper.classList.contains("image-removed");
+
+      localStorage.setItem("senren_englishImageHidden", isHidden ? "true" : "false");
+
+      if (isHidden) {
+        showBtn.style.setProperty("display", "flex", "important");
+      } else {
+        showBtn.style.setProperty("display", "none", "important");
+      }
+
+      english_dynamicCardHeight();
+    };
+
+    hideBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      toggle();
+    });
+
+    showBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      toggle();
+    });
+  }
+
+  // Adjusts the height of the card to match the picture in Backdrop Layout (BG Card mode)
+  function english_dynamicCardHeight() {
+    const back = english_ELS.back;
+    const img = english_ELS.pictureContainer?.querySelector(
+      "img:not(.senren_english-filtered-image)",
+    );
+
+    if (!back || !img) return;
+
+    const applyHeight = () => {
+      if (back.classList.contains("image-removed")) {
+        back.style.removeProperty("min-height");
+        return;
+      }
+
+      const enabled = senren_englishConfig.enableBackdropLayout;
+      const dynamicHeight = senren_englishConfig.backdropDynamicHeight;
+      const backdropStyle = senren_englishConfig.backdropStyle;
+
+      const isActive =
+        enabled === "1" && dynamicHeight === "1" && backdropStyle === "0";
+
+      if (!isActive) {
+        back.style.removeProperty("min-height");
+        return;
+      }
+
+      if (img.offsetHeight > 0) {
+        const style = window.getComputedStyle(back);
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const paddingBottom = parseFloat(style.paddingBottom) || 0;
+        const totalPadding = paddingTop + paddingBottom;
+
+        const targetHeight = img.offsetHeight - totalPadding + "px";
+
+        back.style.setProperty("min-height", targetHeight, "important");
+      } else if (img.complete) {
+        requestAnimationFrame(() => applyHeight());
+      }
+    };
+
+    requestAnimationFrame(() => applyHeight());
+
+    if (!window._senren_english_height_init) {
+      window.addEventListener("resize", english_dynamicCardHeight);
+      window._senren_english_height_init = true;
+    }
+  }
+
+  (function () {
+    window.senren_englishUpdateConfig = function (runLogic = false) {
+      // Regex Cache
+      window.english_REGEX = {
+        MORA: /[きしちにひみりぎじぢびぴゔ][ゃゅょ]|[うくすつぬふむゆるぐずづぶゔ][ぁぃぅぇぉ]|[てで][ぃ]|[とど][ぅ]|[キシチニヒミリギジヂビピヴ][ャュョ]|[ウクスツヌフムユルグズヅブプヴ][ァィゥェォ]|[テデ][ィ]|[トド][ぅ]|[クグ][ヮ]|[フ][ォ]|[っッ]|ー|[んン]|[\u3041-\u3096\u30A1-\u4DBF\u3005\u3007]|[\u3041-\u3096\u30A1-\u30F6\u30FD\u30FE]|\S/g,
+        KANJI: /[\u4E00-\u9FFF\u3400-\u4DBF\u3005\u3007]/,
+        KANA_MODIFIERS: /[\s\u3099\u309A\u309B\u309C]/g,
+        NARROW_VOWELS:
+          /[いきしちにひみりぎじぢびぴイキシチニヒミリギジヂビピうくすつぬふむるぐずづぶぷウクスツヌフムルグズヅブプ]/g,
+        DIGITS: /\d+/g,
+        RUBY_RT: /<ruby>([^<]+?)<rt>(.*?)<\/rt><\/ruby>/g,
+        HIGHLIGHT: /<(?:span class="highlight"|b)>(.*?)<\/(?:span|b)>/g,
+        KANA_ONLY: /^[ぁ-ゖァ-ヺ゙゚ー\s]+$/,
+        COMBINING_MARK: /([ぁ-ゖァ-ヺ])[\u3099\u309A]/g,
+        SMALL_KANA: /[ぁぃぅぇぉゃゅょゎァィゥェォャゅョヮ]/g,
+      };
+
+      // NSFW Cache
+      const tagsAttr = document.querySelector(".back")?.getAttribute("data-tags") || "";
+      window.english_IS_NSFW = tagsAttr.toLowerCase().includes("nsfw");
+
+      // DOM Cache
+      window.english_ELS = {
+        back: document.querySelector(".back"),
+        word: document.getElementById("word"),
+        sentence: document.getElementById("sentence"),
+        formattedSentence: document.getElementById("formattedSentence"),
+        sentenceEng: document.getElementById("sentenceEng"),
+        glossary: document.getElementById("glossary"),
+        definition: document.getElementById("definition"),
+        selectionText: document.getElementById("selectionText"),
+        miscInfo: document.querySelector(".misc-info"),
+        pictureContainer: document.querySelector(".picture-container"),
+        tagsContainer: document.querySelector(".tags-container"),
+        audioContainer: document.querySelector(".sentenceaudio"),
+        position: document.getElementById("position"),
+        wordAudioBtn: document.querySelector(
+          ".audio .soundLink, .audio .replaybutton, .audio .replay-button",
+        ),
+      };
+
+      const style = getComputedStyle(document.documentElement);
+      const getVar = (prop) =>
+        style.getPropertyValue(prop).trim().toLowerCase();
+
+      // Notes
+      senren_englishConfig.notesDefaultExpanded = getVar("--english-notes-default-expanded");
+
+      // Translation
+      senren_englishConfig.translationDefaultExpanded = getVar(
+        "--english-translation-default-expanded",
+      );
+
+      // Collect Glossary Images
+      senren_englishConfig.collectGlossaryImages = getVar("--english-collect-glossary-images");
+      senren_englishConfig.collectGlossaryImagesMax = getVar(
+        "--english-collect-glossary-images-max",
+      );
+      senren_englishConfig.collectGlossaryImagesMinDim = getVar(
+        "--english-collect-glossary-images-min-dim",
+      );
+      senren_englishConfig.collectGlossaryImagesMinArea = getVar(
+        "--english-collect-glossary-images-min-area",
+      );
+
+      // Backdrop Layout
+      senren_englishConfig.enableBackdropLayout = getVar("--english-enable-backdrop-layout");
+      senren_englishConfig.backdropStyle = getVar("--english-backdrop-style");
+      senren_englishConfig.backdropDynamicHeight = getVar("--english-backdrop-dynamic-height");
+
+      // Misc Info
+      senren_englishConfig.miscInfoDefaultExpanded = getVar(
+        "--english-misc-info-default-expanded",
+      );
+      senren_englishConfig.miscInfoVisibility = getVar("--english-misc-info-visibility");
+      if (window.english_ELS.miscInfo) {
+        window.english_ELS.miscInfo.classList.toggle(
+          "senren_english-misc-info-hidden",
+          senren_englishConfig.miscInfoVisibility === "0",
+        );
+      }
+
+      // Audio
+      senren_englishConfig.muteNsfwAudio = getVar("--english-mute-nsfw-audio");
+      senren_englishConfig.muteSentenceAudio = getVar("--english-mute-sentence-audio");
+      senren_englishConfig.blurNsfwPicture = getVar("--english-blur-nsfw-picture");
+
+      // Kanji
+      senren_englishConfig.enableKanjiHover = getVar("--english-enable-kanji-hover");
+      senren_englishConfig.kanjiHoverAutoQuote = getVar("--english-kanji-hover-auto-quote");
+      senren_englishConfig.english_noDuplicateKana = getVar("--english-no-duplicate-kana");
+
+      // Dictionary
+      senren_englishConfig.dictionaryCollapse = getVar("--english-dictionary-collapse");
+      senren_englishConfig.dictionaryMaxHeight = getVar("--english-dictionary-max-height");
+
+      // Keys
+      senren_englishConfig.sceneReplayShortcutKey = getVar(
+        "--english-scene-replay-shortcut-key",
+      );
+      senren_englishConfig.toggleSettingsKey = getVar("--english-toggle-settings-key");
+      senren_englishConfig.togglePictureLightboxGridKey = getVar(
+        "--english-toggle-picture-lightbox-grid-key",
+      );
+      senren_englishConfig.togglePictureLightboxKey = getVar(
+        "--english-toggle-picture-lightbox-key",
+      );
+      senren_englishConfig.toggleCustomDarkModeKey = getVar(
+        "--english-toggle-custom-dark-mode-key",
+      );
+      senren_englishConfig.toggleImageKey = getVar("--english-toggle-image-key");
+
+      // Pitch
+      senren_englishConfig.pitchStyle = getVar("--english-pitch-style");
+      senren_englishConfig.pitchColors = getVar("--english-pitch-colors");
+      senren_englishConfig.sentencePitchHighlight = getVar(
+        "--english-sentence-pitch-highlight",
+      );
+
+      if (!runLogic) return;
+
+      if (typeof window.english_dynamicCardHeight === "function") {
+        window.english_dynamicCardHeight();
+      }
+      if (typeof window.english_alternativePitchStyle === "function") {
+        window.english_alternativePitchStyle();
+      }
+    };
+
+    // Initial load
+    window.senren_englishUpdateConfig();
+
+    window.english_IS_MOBILE =
+      document.documentElement.classList.contains("mobile") ||
+      document.body.classList.contains("mobile");
+    window.SENREN_ENGLISH_COMPACT_VIEW =
+      window.english_IS_MOBILE ||
+      (window.matchMedia &&
+        window.matchMedia("(max-width: 1050px)").matches);
+    window.SENREN_ENGLISH_HAS_HOVER = !(
+      window.matchMedia && window.matchMedia("(hover: none)").matches
+    );
+
+    const delayedFunctions =
+      window.requestIdleCallback ||
+      function (cb) {
+        return setTimeout(cb, 200);
+      };
+
+    // Initializes immediate functions
+    function init() {
+      const lookupWord = encodeURIComponent(document.querySelector('.ruby-base-word')?.textContent.trim() || '');
+      const lookupUrls = {
+        cambridge: 'https://dictionary.cambridge.org/dictionary/english/',
+        oxford: 'https://www.oxfordlearnersdictionaries.com/definition/english/',
+        youglish: 'https://youglish.com/pronounce/',
+        images: 'https://www.bing.com/images/search?q='
+      };
+      document.querySelectorAll('[data-english-lookup]').forEach(link => {
+        link.href = lookupUrls[link.dataset.englishLookup] + lookupWord + (link.dataset.englishLookup === 'youglish' ? '/english' : '');
+      });
+      darkMode();
+      nsfw();
+      muteSentence();
+      splitTags();
+      highlightFurigana();
+      english_renderBackReading();
+
+      english_alternativePitchStyle();
+      dictionaryTitle();
+      prefilterTinyImages();
+      consolidateYomitanGlossaryEntries();
+      toggleDefinition();
+      enableInteractions();
+      enableSceneSwitching();
+      enableImageToggle();
+
+      if (!window.SENREN_ENGLISH_COMPACT_VIEW) {
+        collectGlossaryImages();
+        english_dynamicCardHeight();
+      }
+      setupSettingsButton();
+    }
+
+    window.senren_englishLoadSettingsMenu = function (callback) {
+      if (window.senren_englishBuildMenu) {
+        if (callback) callback();
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "_senren_english_settings_v4.7.0.js?v=20261008.1";
+      script.onload = () => {
+        setTimeout(callback, 100);
+      };
+      document.body.appendChild(script);
+    };
+
+    function setupSettingsButton() {
+      const btn = document.querySelector(".toggle-settings-btn");
+      if (btn && !btn.dataset.hasLazyLoadListener) {
+        btn.dataset.hasLazyLoadListener = "true";
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const modal = document.getElementById("senren_english-settings-modal");
+          if (modal) {
+            modal.classList.add("active");
+            if (window.english_renderPresetUI) window.english_renderPresetUI();
+          } else {
+            window.senren_englishLoadSettingsMenu(() => {
+              const m = document.getElementById("senren_english-settings-modal");
+              if (m) {
+                m.classList.add("active");
+                if (window.english_renderPresetUI) window.english_renderPresetUI();
+              }
+            });
+          }
+        });
+      }
+    }
+
+    // initializes deferred functions
+    function initDeferred() {
+      delayedFunctions(() => {
+        collectGlossaryImages(true);
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              // External deferred functions
+              if (window.senren_englishInitDeferred) {
+                window.senren_englishInitDeferred();
+              } else {
+                const script = document.createElement("script");
+                script.src = "_senren_english_deferred_v4.7.0.js";
+                document.body.appendChild(script);
+              }
+
+
+            }, 50);
+          });
+        });
+      });
+    }
+
+    init();
+    initDeferred();
+  })();

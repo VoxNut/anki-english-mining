@@ -1,0 +1,76 @@
+<script src="_senren_english_theme_v4.7.0.js"></script>
+<!-- FRONT -->
+<div id="senren_english-metadata" data-deck="{{Deck}}" data-audio-card="false"></div>
+<div class="front">
+    <!-- HEADER -->
+    <div class="header">
+        <span
+            class="left-controls-reveal tappable"
+            role="button"
+            tabindex="0"
+            aria-label="Show card controls"
+            title="Show card controls"
+        ></span>
+
+        <!-- Theme Toggle -->
+        <span class="toggle-custom-dark-mode senren_english-left-control tappable">
+            <i class="fas fa-sun sun-icon"></i>
+            <i class="fas fa-moon moon-icon"></i>
+        </span>
+
+
+
+        <!-- Settings Toggle -->
+        <span class="toggle-settings-btn senren_english-left-control tappable">
+            <i class="fas fa-cog"></i>
+        </span>
+
+
+        <!-- /HEADER -->
+    </div>
+
+    <!-- Audio Card -->
+
+
+    <div id="sentence-wrapper-audio">
+        <div id="sentence-audio">{{Sentence}}</div>
+    </div>
+
+    <!-- Sentence Card -->
+
+
+    <!-- Word Card (Default) -->
+    <div class="desktop-word-layout">
+        <div
+            id="word"
+            class="toggle-trigger tappable"
+            onclick="toggleVisibility('sentence-wrapper', 'sentence')"
+        >
+            {{Word}}
+        </div>
+    </div>
+
+    <div class="mobile-word-layout">
+        <div class="background-box">
+            <div
+                id="word"
+                class="toggle-trigger tappable"
+                onclick="toggleVisibility('sentence-wrapper', 'sentence')"
+            >
+                {{Word}}
+            </div>
+        </div>
+    </div>
+
+    <div id="sentence-wrapper">
+        <div id="sentence" class="sentence-front">{{Sentence}}</div>
+    </div>
+
+</div>
+<!-- /FRONT -->
+
+<!-- Hidden field to let JS calculate audio delay based on reading length -->
+<div id="hiddenReading" style="display: none !important">{{IPA}}</div>
+
+
+<script src="_senren_english_front_v4.7.0.js?v=20261105.1"></script>

@@ -1,0 +1,148 @@
+{
+  "samples": [
+    {
+      "fields": {
+        "Word": {
+          "value": "example",
+          "order": 0
+        },
+        "IPA": {
+          "value": "<ul><li class=\"pronunciation\"><i>(US)</i> /test/</li><li class=\"pronunciation\"><i>(GB)</i> /test/</li></ul>",
+          "order": 1
+        },
+        "Meaning": {
+          "value": "<ol><li data-dictionary=\"Example Dictionary\"><i>(noun, Example Dictionary)</i>A synthetic definition.<ul><li>A synthetic example.</li></ul></li></ol>",
+          "order": 2
+        },
+        "Sentence": {
+          "value": "This is a synthetic example sentence.",
+          "order": 3
+        },
+        "SentenceAudio": {
+          "value": "",
+          "order": 4
+        },
+        "WordAudio": {
+          "value": "",
+          "order": 5
+        },
+        "Image": {
+          "value": "",
+          "order": 6
+        },
+        "Frequency": {
+          "value": "100",
+          "order": 7
+        },
+        "PartOfSpeech": {
+          "value": "noun",
+          "order": 8
+        },
+        "Preference": {
+          "value": "",
+          "order": 9
+        },
+        "MiscInfo": {
+          "value": "Synthetic fixture",
+          "order": 10
+        }
+      }
+    },
+    {
+      "fields": {
+        "Word": {
+          "value": "sample",
+          "order": 0
+        },
+        "IPA": {
+          "value": "<ul><li class=\"pronunciation\"><i>(US)</i> /test/</li><li class=\"pronunciation\"><i>(GB)</i> /test/</li></ul>",
+          "order": 1
+        },
+        "Meaning": {
+          "value": "<ol><li data-dictionary=\"Example Dictionary\"><i>(noun, Example Dictionary)</i>A synthetic definition.<ul><li>A synthetic example.</li></ul></li></ol>",
+          "order": 2
+        },
+        "Sentence": {
+          "value": "This is a synthetic example sentence.",
+          "order": 3
+        },
+        "SentenceAudio": {
+          "value": "",
+          "order": 4
+        },
+        "WordAudio": {
+          "value": "",
+          "order": 5
+        },
+        "Image": {
+          "value": "",
+          "order": 6
+        },
+        "Frequency": {
+          "value": "100",
+          "order": 7
+        },
+        "PartOfSpeech": {
+          "value": "noun",
+          "order": 8
+        },
+        "Preference": {
+          "value": "",
+          "order": 9
+        },
+        "MiscInfo": {
+          "value": "Synthetic fixture",
+          "order": 10
+        }
+      }
+    },
+    {
+      "fields": {
+        "Word": {
+          "value": "practice",
+          "order": 0
+        },
+        "IPA": {
+          "value": "<ul><li class=\"pronunciation\"><i>(US)</i> /test/</li><li class=\"pronunciation\"><i>(GB)</i> /test/</li></ul>",
+          "order": 1
+        },
+        "Meaning": {
+          "value": "<ol><li data-dictionary=\"Example Dictionary\"><i>(noun, Example Dictionary)</i>A synthetic definition.<ul><li>A synthetic example.</li></ul></li></ol>",
+          "order": 2
+        },
+        "Sentence": {
+          "value": "This is a synthetic example sentence.",
+          "order": 3
+        },
+        "SentenceAudio": {
+          "value": "",
+          "order": 4
+        },
+        "WordAudio": {
+          "value": "",
+          "order": 5
+        },
+        "Image": {
+          "value": "",
+          "order": 6
+        },
+        "Frequency": {
+          "value": "100",
+          "order": 7
+        },
+        "PartOfSpeech": {
+          "value": "noun",
+          "order": 8
+        },
+        "Preference": {
+          "value": "",
+          "order": 9
+        },
+        "MiscInfo": {
+          "value": "Synthetic fixture",
+          "order": 10
+        }
+      }
+    }
+  ]
+}

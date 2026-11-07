@@ -1,0 +1,158 @@
+<script src="_senren_english_theme_v4.7.0.js"></script>
+<!-- BACK -->
+<div class="back" data-tags="{{Tags}}">
+  <!-- HEADER -->
+  <div class="header">
+    <span
+      class="left-controls-reveal tappable"
+      role="button"
+      tabindex="0"
+      aria-label="Show card controls"
+      title="Show card controls"
+    ></span>
+
+    <!-- Theme Toggle -->
+    <span class="toggle-custom-dark-mode senren_english-left-control tappable">
+      <i class="fas fa-sun sun-icon"></i>
+      <i class="fas fa-moon moon-icon"></i>
+    </span>
+
+    <!-- Settings Toggle -->
+    <span class="toggle-settings-btn senren_english-left-control tappable">
+      <i class="fas fa-cog"></i>
+    </span>
+
+    <!-- Audios -->
+    {{#WordAudio}}
+    <div class="senren_english-left-control {{Tags}}"><span class="audio">{{WordAudio}}</span></div>
+    {{/WordAudio}} {{#SentenceAudio}}
+    <div class="senren_english-left-control {{Tags}}">
+      <span class="sentenceaudio">{{SentenceAudio}}</span>
+    </div>
+    {{/SentenceAudio}}
+
+    <!-- Notes Toggle -->
+
+
+    <!-- Image Toggle -->
+    <span
+      class="toggle-image-visibility show-btn senren_english-left-control tappable"
+      style="display: none"
+    >
+      <i class="fas fa-image"></i>
+    </span>
+
+    <!-- Frequency Dropdown -->
+    <div id="frequency">
+      <div class="frequency-box tappable">
+        <label class="freqbt" data-freq="{{Frequency}}">
+          {{Frequency}} <i class="fas fa-chevron-down arrow"></i>
+        </label>
+        {{#Frequency}}
+        <div class="frequency-content">{{Frequency}}</div>
+        {{/Frequency}}
+      </div>
+    </div>
+  </div>
+  <!-- /HEADER -->
+
+  <!-- GRID LAYOUT -->
+  <div class="grid-container">
+    <!-- Word -->
+    <div class="background-box tappable">
+      <div id="word" class="pitch card-a">
+        <span class=" {{Tags}}">
+          <span class="word-reading-stack">
+            <span class="ruby-base-word">{{Word}}</span>
+            <span class="word-reading english-ipa">{{IPA}}</span>
+            {{#PartOfSpeech}}<span class="english-pos">{{PartOfSpeech}}</span>{{/PartOfSpeech}}
+          </span>
+
+        </span>
+      </div>
+    </div>
+
+    <!-- Picture -->
+    <div class="picture-container {{Tags}} clickable-image tappable">
+      {{Image}}
+
+      <div class="toggle-image-visibility hide-btn tappable">
+        <i class="fas fa-times"></i>
+      </div>
+
+      <div class="nav-arrow left tappable"></div>
+      <div class="nav-arrow right tappable"></div>
+    </div>
+  </div>
+  <!-- /GRID LAYOUT -->
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <img id="lightbox-img" />
+    <a href="#" class="close tappable"></a>
+    <div class="lightbox-nav left tappable"></div>
+    <div class="lightbox-nav right tappable"></div>
+    <button id="show-all" class="lightbox-grid-toggle tappable">
+      Show All
+    </button>
+  </div>
+
+  <!-- Sentence -->
+  <div class="sentence-container">
+    <div id="sentence">
+      <span id="formattedSentence" class=" tappable"></span>
+    </div>
+
+  </div>
+
+  <!-- Notes -->
+
+
+  <!-- Selection Text -->
+
+
+  <!-- Glossary -->
+  <div id="glossary" class="card-b yomitan-glossary" data-type="glossary">
+    <div class="dictionary-counter"></div>
+    <div class="toggle-area left-larger tappable"></div>
+    <div class="toggle-area right-larger tappable"></div>
+    <div class="toggle-area left tappable"></div>
+    <div class="toggle-area right tappable"></div>
+    <div class="glossary-box">
+      <span>{{Meaning}}</span>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="tags-and-links-wrapper">
+    <!-- Tags -->
+    <div class="tags-container"></div>
+
+    <!-- External Links -->
+
+    <div class="external-links english-links">
+      <a data-english-lookup="cambridge" href="https://dictionary.cambridge.org/" title="Cambridge Dictionary">Cambridge</a>
+      <a data-english-lookup="oxford" href="https://www.oxfordlearnersdictionaries.com/" title="Oxford Learner’s Dictionaries">Oxford</a>
+      <a data-english-lookup="youglish" href="https://youglish.com/" title="Hear this word in English">YouGlish</a>
+      <a data-english-lookup="images" href="https://www.bing.com/images" title="Search images">Images</a>
+    </div>
+  </div>
+
+  <!-- Misc Info -->
+  <div class="misc-info">{{MiscInfo}}</div>
+  <!-- /FOOTER -->
+
+  <div id="dictionaryPreference" style="display: none">
+    {{Preference}}
+  </div>
+  <div id="kanji-tooltip"></div>
+  <div id="grammar-tooltip"></div>
+</div>
+<!-- /BACK -->
+
+
+<!-- Hidden containers to hold sentence and furigana fields for the external script -->
+<div id="hiddenSentence" style="display: none !important">{{Sentence}}</div>
+
+
+<script src="_senren_english_back_v4.7.0.js?v=20261105.2"></script>
