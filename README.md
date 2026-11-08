@@ -2,7 +2,7 @@
 
 An English adaptation of Senren v4.7.0, with Nord/Focus themes, saved presets, dictionary switching, audio replay, picture navigation, and a lightbox. Based on the Senren runtime maintained in [VoxNut/reisei](https://github.com/VoxNut/reisei).
 
-The glossary follows **Word Font**, retains dictionary headings and nested definition/example bullets, and uses compact spacing. The outer dictionary entry number is hidden. Long words and phrases wrap on narrow screens. IPA retains its own sans-serif font.
+The glossary follows **Word Font**, retains dictionary headings and nested definition/example bullets, and uses compact spacing. The outer dictionary entry number is hidden. Long individual words shrink to fit; phrases wrap at spaces on narrow screens. Sizing responds to loaded fonts, typography changes, and screen-width changes. IPA retains its own sans-serif font.
 
 ## Existing fields
 
