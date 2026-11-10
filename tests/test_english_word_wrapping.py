@@ -13,7 +13,7 @@ def main():
     (OUT / '.test-pages').mkdir(exist_ok=True)
     note = json.loads((OUT / 'tests/fixtures/notes.json').read_text(encoding='utf-8'))['samples'][0]
     fields = {name: field['value'] for name, field in note['fields'].items()}
-    words = ['under your breath', 'transcontinental', 'pneumonoultramicroscopicsilicovolcanoconiosis']
+    words = ['under your breath', 'transcontinental', 'pneumonoultramicroscopicsilicovolcanoconiosis', 'pigeonhole']
     for index, word in enumerate(words):
         for side in ['front', 'back']:
             body = render((OUT / (side + '.html')).read_text(encoding='utf-8'), dict(fields, Word=word, Deck='English Mining', Tags=''))
@@ -62,6 +62,20 @@ def main():
                             assert rect['top'] >= result['bounds']['top'] - 5 and rect['bottom'] <= result['bounds']['bottom'] + 5, (width, side, theme, 'clipped vertically', result)
                         assert not errors, errors
                         checks += 5
+                        if side == 'back' and word == 'pigeonhole':
+                            for position in ['above', 'below']:
+                                gap = page.evaluate('''position => {
+                                  document.documentElement.style.setProperty('--english-reading-position', position);
+                                  const word = document.querySelector('.ruby-base-word');
+                                  const ipa = document.querySelector('.english-ipa');
+                                  const range = document.createRange();
+                                  range.selectNodeContents(word);
+                                  const text = range.getBoundingClientRect();
+                                  const reading = ipa.getBoundingClientRect();
+                                  return position === 'above' ? text.top - reading.bottom : reading.top - text.bottom;
+                                }''', position)
+                                assert gap >= 3, (width, theme, position, 'IPA touches the word', gap)
+                                checks += 1
                         if width == 360 and index == 0 and side == 'front' and theme == 'focus':
                             page.locator('#word:visible').click()
                             page.wait_for_timeout(350)
