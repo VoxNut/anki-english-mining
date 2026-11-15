@@ -14,6 +14,9 @@ def main():
     note = json.loads((OUT / 'tests/fixtures/glossary.json').read_text(encoding='utf-8'))[0]
     fields = {name: field['value'] for name, field in note['fields'].items()}
     fields['Preference'] = '(5K, verb, seth-oald-extra)'
+    fields['Meaning'] = fields['Meaning'].replace(
+        '</i><ul>', '</i> <span class="inline-definition">A short definition.</span><ul>', 1
+    )
     card = render((OUT / 'back.html').read_text(encoding='utf-8'), dict(fields, Tags='', Deck='English Mining'))
     (OUT / '.test-pages/native-glossary.html').write_text(
         '<!doctype html><meta charset="utf-8"><base href="/"><link rel="stylesheet" href="style.css">'
@@ -55,7 +58,9 @@ def main():
                   ];
                   const styles = pairs.map(([a,b])=>[inspect(a),inspect(b)]);
                   frame.remove();
-                  return {styles, heading: active.querySelector('i').textContent,
+                  const heading = active.querySelector('i');
+                  return {styles, heading: heading.textContent,
+                    definitionBelow: active.querySelector('.inline-definition').getBoundingClientRect().top >= heading.getBoundingClientRect().bottom - 1,
                     titleVisible: [...box.querySelectorAll('.dictionary-title')].some(el=>getComputedStyle(el).display!=='none'),
                     accent: getComputedStyle(active,'::before').content,
                     activeCount: [...box.querySelectorAll('li[data-dictionary]')].filter(el=>getComputedStyle(el).display!=='none').length,
@@ -66,6 +71,8 @@ def main():
                         assert actual.pop('listStyleType') == 'none', 'Outer entry number is still visible'
                         native.pop('listStyleType')
                     if index == 1:
+                        assert actual.pop('display') == 'block'
+                        native.pop('display')
                         actual.pop('listStyleType')
                         native.pop('listStyleType')
                     if index in [2, 4]:
@@ -73,6 +80,7 @@ def main():
                     assert actual == native, (width, theme, actual, native)
                     checks += len(actual)
                 assert result['heading'] == '(5K, verb, seth-oald-extra)'
+                assert result['definitionBelow'], 'The inline definition shares the heading line'
                 assert not result['titleVisible'] and result['accent'] == 'none'
                 assert result['activeCount'] == 1 and not result['overflow']
                 assert not errors, errors
@@ -81,6 +89,7 @@ def main():
                 # Imported Cambridge class styles must survive switching too.
                 page.keyboard.press('k')
                 assert page.locator('li[data-dictionary="Cambridge Dictionary"]').is_visible()
+                assert page.locator('li[data-dictionary="Cambridge Dictionary"] > i').evaluate('(el)=>getComputedStyle(el).display') == 'inline'
                 assert page.locator('li[data-dictionary="Cambridge Dictionary"] .ic-ec25e73eb2').first.evaluate('(el)=>getComputedStyle(el).color') == 'rgb(170, 170, 170)'
                 page.keyboard.press('j')
                 checks += 2

@@ -8985,6 +8985,9 @@ html[data-senren_english-theme="nord"] :is(.definition-box, .glossary-box)
   font: inherit;
   font-style: italic;
 }
+#glossary .glossary-box li[data-dictionary="seth-oald-extra"] > i:first-of-type {
+  display: block;
+}
 #glossary .glossary-box li[data-dictionary]::before,
 #glossary .glossary-box li[data-dictionary]::after {
   content: none !important;
