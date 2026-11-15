@@ -9054,3 +9054,15 @@ html[data-senren_english-theme="nord"] :is(.definition-box, .glossary-box)
 .ipad :is(#sentence-wrapper, #sentence-wrapper-audio).expanded {
   max-height: none !important;
 }
+
+/* Keep the review width stable while AnkiMobile updates its layout. */
+.ipad #qa {
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+.ipad :is(.front, .back) {
+  width: calc(100% - 24px) !important;
+  max-width: var(--english-card-max-width);
+  box-sizing: border-box;
+}

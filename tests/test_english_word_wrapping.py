@@ -20,6 +20,10 @@ def main():
             (OUT / '.test-pages' / f'wrap-{index}-{side}.html').write_text(
                 '<!doctype html><meta charset="utf-8"><base href="/"><link rel="stylesheet" href="style.css"><body class="card nightMode">' + body,
                 encoding='utf-8')
+            if word == 'transcontinental':
+                (OUT / '.test-pages' / f'ipad-{side}.html').write_text(
+                    '<!doctype html><html class="ipad mobile"><meta charset="utf-8"><base href="/"><link rel="stylesheet" href="style.css"><body class="card nightMode"><div id="qa">' + body + '</div>',
+                    encoding='utf-8')
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(ROOT)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     checks = 0
@@ -99,9 +103,9 @@ def main():
         for width in [820, 1180]:
             page.set_viewport_size({'width':width, 'height':1000})
             for side in ['front', 'back']:
-                page.goto(f'http://127.0.0.1:{server.server_port}/.test-pages/wrap-1-{side}.html')
+                page.goto(f'http://127.0.0.1:{server.server_port}/.test-pages/ipad-{side}.html')
+                assert page.evaluate('window.senrenEnglishWordResize === undefined'), 'iPad started the word fitter'
                 page.evaluate('''() => {
-                  document.documentElement.classList.add('ipad', 'mobile');
                   const sentence = document.querySelector('#sentence');
                   sentence.style.fontSize = '16px';
                   const annotated = document.createElement('span');
@@ -117,6 +121,16 @@ def main():
                 for theme in ['nord', 'focus']:
                     page.evaluate('(theme) => SenrenEnglishTheme.apply(theme)', theme)
                     sizes = []
+                    widths = page.evaluate('''() => {
+                      const qa = document.querySelector('#qa');
+                      const card = qa.querySelector('.front, .back');
+                      return ['', '55%', ''].map(width => {
+                        qa.style.width = width;
+                        return [qa.clientWidth, card.getBoundingClientRect().width];
+                      });
+                    }''')
+                    assert widths[0] == widths[1] == widths[2], (width, side, theme, widths)
+                    checks += 1
                     for scale in ['125%', '137.5%', '162.5%']:
                         page.evaluate('(scale) => document.documentElement.style.fontSize = scale', scale)
                         page.wait_for_timeout(50)

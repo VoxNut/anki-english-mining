@@ -2,6 +2,8 @@
   // Anki reuses the webview, so release the previous card's resize observer.
   window.senrenEnglishWordResize?.disconnect();
   window.senrenEnglishWordStyle?.disconnect();
+  // iPad review sizing is handled by CSS and the app's text scale.
+  if (document.documentElement.matches('.ipad') || document.body.matches('.ipad')) return;
   var pending = false;
 
   function fitWords() {
