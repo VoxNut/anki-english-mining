@@ -96,9 +96,59 @@ def main():
         page.wait_for_timeout(100)
         assert page.locator('#word:visible').evaluate('(el)=>el.style.fontSize') == '', 'Fitted font overrode a smaller typography setting'
         checks += 2
+        for width in [820, 1180]:
+            page.set_viewport_size({'width':width, 'height':1000})
+            for side in ['front', 'back']:
+                page.goto(f'http://127.0.0.1:{server.server_port}/.test-pages/wrap-1-{side}.html')
+                page.evaluate('''() => {
+                  document.documentElement.classList.add('ipad', 'mobile');
+                  const sentence = document.querySelector('#sentence');
+                  sentence.style.fontSize = '16px';
+                  const annotated = document.createElement('span');
+                  annotated.style.fontSize = '16px';
+                  annotated.innerHTML = '<ruby>example<rt style="font-size: 8px">annotation</rt></ruby>';
+                  sentence.append(' ', annotated);
+                  const prompt = sentence.closest('#sentence-wrapper');
+                  if (prompt) {
+                    prompt.classList.add('expanded');
+                    prompt.style.maxHeight = '1px';
+                  }
+                }''')
+                for theme in ['nord', 'focus']:
+                    page.evaluate('(theme) => SenrenEnglishTheme.apply(theme)', theme)
+                    sizes = []
+                    for scale in ['125%', '137.5%', '162.5%']:
+                        page.evaluate('(scale) => document.documentElement.style.fontSize = scale', scale)
+                        page.wait_for_timeout(50)
+                        sizes.append(page.evaluate('''() => {
+                          const word = [...document.querySelectorAll('#word')].find(el => el.getClientRects().length);
+                          // Simulate inline size overrides from the reviewer or field markup.
+                          word.style.fontSize = '16px';
+                          const headword = word.querySelector('.ruby-base-word') || word;
+                          headword.style.fontSize = '16px';
+                          const sentence = document.querySelector('#sentence');
+                          const glossary = document.querySelector('#glossary');
+                          const size = el => parseFloat(getComputedStyle(el).fontSize);
+                          const prompt = document.querySelector('#sentence-wrapper.expanded');
+                          return {
+                            fonts: [size(headword), size(sentence), size(sentence.lastElementChild), size(sentence.querySelector('rt')), size(glossary || document.documentElement)],
+                            clipped: prompt && prompt.clientHeight < prompt.scrollHeight,
+                            overflow: document.documentElement.scrollWidth > innerWidth
+                          };
+                        }'''))
+                    baseline = sizes[0]['fonts']
+                    assert baseline[0] > baseline[1] > baseline[4], (width, side, theme, baseline)
+                    for result, expected_growth in zip(sizes, [1, 1.1, 1.3]):
+                        actual = result['fonts']
+                        glossary_growth = actual[4] / baseline[4]
+                        assert abs(glossary_growth - expected_growth) < .002
+                        assert all(abs(value / original - glossary_growth) < .002 for value, original in zip(actual, baseline))
+                        assert actual[1] == actual[2] and actual[3] == actual[1] / 2
+                        assert not result['clipped'] and not result['overflow'], (width, side, theme, result)
+                        checks += 3
         browser.close()
     server.shutdown()
-    print(f'PASS: {checks} word wrapping and visible-glyph checks across five widths and both card sides/themes')
+    print(f'PASS: {checks} word wrapping, visible-glyph, and iPad review-scale checks')
 
 
 if __name__ == '__main__':

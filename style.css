@@ -9024,3 +9024,33 @@ html[data-senren_english-theme="nord"] :is(.definition-box, .glossary-box)
   white-space: normal;
   line-height: 1.2;
 }
+
+/* AnkiMobile on iPad scales rem and can write font sizes inline. */
+.ipad #word {
+  font-size: var(--english-word-size-base) !important;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ipad #word > span,
+.ipad #word :is(.word-reading-stack, .ruby-base-word, .ruby-base-word span) {
+  font-size: inherit !important;
+}
+
+.ipad :is(#sentence, #sentence-audio) {
+  font-size: var(--english-sentence-size) !important;
+  overflow-wrap: anywhere;
+}
+
+.ipad :is(#sentence, #sentence-audio) :is(span, b, strong, ruby, rb) {
+  font-size: inherit !important;
+}
+
+.ipad :is(#sentence, #sentence-audio) rt {
+  font-size: 50% !important;
+}
+
+/* Allow a revealed prompt to grow when the reviewer text size changes. */
+.ipad :is(#sentence-wrapper, #sentence-wrapper-audio).expanded {
+  max-height: none !important;
+}
