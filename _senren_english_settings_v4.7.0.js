@@ -596,7 +596,6 @@
 
       const styleInfo = await invokeAnkiConnect('modelStyling', { modelName: modelName });
       let modifiedCss = styleInfo.css;
-      const originalCss = modifiedCss;
 
       const liveSettings = getCurrentSettings();
       const items = Object.values(groups).flatMap(g => Array.isArray(g) ? g : g.items);
@@ -660,18 +659,27 @@
         }
       });
 
-      if (modifiedCss === originalCss) {
-        alert("No changes detected.");
-        statusBtn.innerText = "No Changes";
-        statusBtn.disabled = false;
-        setTimeout(() => statusBtn.innerText = origText, 2000);
-        return;
+      const settingsVersion = '"' + Date.now() + '"';
+      if (/--english-settings-version\s*:[^;]+;/.test(modifiedCss)) {
+        modifiedCss = modifiedCss.replace(/--english-settings-version\s*:[^;]+;/,
+          '--english-settings-version: ' + settingsVersion + ';');
+      } else {
+        modifiedCss = modifiedCss.replace(':root {', ':root {\n  --english-settings-version: ' + settingsVersion + ';');
+      }
+
+      // Keep the synced preset file consistent with Save to Anki's typography.
+      const presets = await loadPresetsFromFile();
+      const presetName = presets._active || activePreset;
+      if (presetName && presets[presetName]) {
+        presets[presetName] = { ...presets[presetName], ...liveSettings };
+        await savePresetsToFile(presets);
       }
 
       statusBtn.innerText = "Saving...";
       await invokeAnkiConnect('updateModelStyling', {
         model: { name: modelName, css: modifiedCss }
       });
+      localStorage.setItem("senren_english_settings_version", settingsVersion);
 
       items.forEach(item => {
         if (item.type === 'header' || item.type === 'sub-header') return;

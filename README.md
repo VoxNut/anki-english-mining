@@ -50,7 +50,7 @@ Custom fonts are optional. The CSS can use `_KleeOne-SemiBold.ttf`, `_NotoSansJP
 
 On touch screens, tap the left edge of the header to reveal hidden controls. Tap the word on the front to reveal its sentence. Typography's **Word Font** controls the word and glossary; IPA stays independent.
 
-Use **Save** to update the selected preset, then **Save to Anki** to persist styling for sync. Preset files, storage keys, and CSS variables are separate from Japanese Senren. **Save to Anki** targets the note type named **English Mining**.
+Use **Save** to update the selected preset. **Save to Anki** saves the current settings to the active preset and note-type styling for sync. After a newer desktop save syncs, the reviewer clears older device font overrides and preset caches so the synced typography applies. **Save to Anki** targets the note type named **English Mining**.
 
 ## Run the regression checks
 

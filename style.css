@@ -18,6 +18,7 @@
 
 /* Custom Variables for Styling */
 :root {
+  --english-settings-version: "20261120.1";
   /* CARD NOTE */
   --english-notes-section-about: #5e81ac;
   --english-notes-section-caution: #bf616a;

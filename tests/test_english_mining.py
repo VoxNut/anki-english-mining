@@ -123,11 +123,16 @@ def main():
             assert page.locator('#glossary .glossary-box').evaluate('(el) => getComputedStyle(el).fontFamily').lower().startswith('georgia'), 'Live glossary font preview ignored the word font'
             page.evaluate('senren_englishUpdateCurrentPreset()')
             assert page.evaluate('testPresets[testPresets._active]["--english-serif"]') == 'Georgia, "Times New Roman", serif'
+            # Save to Anki must also persist edits made after the preset's Save button.
+            page.locator('[data-var="--english-sans"] .senren_english-segment-btn').filter(has_text='Arial').first.evaluate('(el)=>el.click()')
             page.evaluate('document.querySelector("#senren_english-save-btn").onclick()')
             assert page.evaluate('testCss !== null')
             assert page.evaluate('testWrites.filter(x => x.action === "updateModelStyling").every(x => x.params.model.name === "English Mining")')
             assert page.evaluate('localStorage.getItem("senren_english_--english-serif")') is None
             saved_css = page.evaluate('testCss')
+            assert '--english-settings-version:' in saved_css
+            assert page.evaluate('testPresets[testPresets._active]["--english-serif"]') == 'Georgia, "Times New Roman", serif'
+            assert page.evaluate('testPresets[testPresets._active]["--english-sans"]') == 'Arial, sans-serif'
             page.goto(url + '0-back.html')
             page.evaluate('(css) => { const style=document.createElement("style"); style.textContent=css; document.head.appendChild(style); }', saved_css)
             page.wait_for_timeout(500)
@@ -136,7 +141,41 @@ def main():
                 assert page.locator(target).first.evaluate('(el) => getComputedStyle(el).fontFamily').lower().startswith('georgia'), 'Saved glossary font lost after fresh load: ' + target
             assert 'lucida sans unicode' in page.locator('.english-ipa').evaluate('(el)=>getComputedStyle(el).fontFamily').lower(), 'IPA font was changed with the glossary font'
             assert page.evaluate('getComputedStyle(document.documentElement).getPropertyValue("--serif").trim()') == '', 'English leaked Japanese typography'
-            checks += 13
+            # Simulate a phone with old local fonts and a cached deck preset after sync.
+            page.evaluate('''(css) => {
+              localStorage.setItem('senren_english_settings_version', 'old-device-version');
+              localStorage.setItem('senren_english_--english-serif', 'Arial, sans-serif');
+              localStorage.setItem('senren_english_--english-sans', 'monospace');
+              localStorage.setItem('senren_english_presets_cache', JSON.stringify({Default:{'--english-serif':'Arial, sans-serif'}}));
+              localStorage.setItem('senren_english_deck_presets_cache', JSON.stringify({'English Mining':'Default'}));
+              sessionStorage.setItem('senren_english_last_deck', 'English Mining');
+              document.documentElement.style.setProperty('--english-serif', 'Arial, sans-serif');
+              const style = document.createElement('style'); style.textContent = css;
+              document.head.appendChild(style);
+            }''', saved_css)
+            page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/_senren_english_theme_v4.7.0.js')
+            assert page.locator('#word').evaluate('(el)=>getComputedStyle(el).fontFamily').lower().startswith('georgia'), 'Stale phone override hid the synced font'
+            assert page.locator('body').evaluate('(el)=>getComputedStyle(el).fontFamily').lower().startswith('arial'), 'Stale general font survived sync'
+            assert page.evaluate('localStorage.getItem("senren_english_presets_cache")') is None, 'Stale cached preset survived sync'
+            assert page.evaluate('sessionStorage.getItem("senren_english_last_deck")') is None
+            # A subsequent local choice must last until a newer desktop save arrives.
+            page.evaluate('''() => {
+              localStorage.setItem('senren_english_--english-serif', 'Arial, sans-serif');
+              document.documentElement.style.setProperty('--english-serif', 'Arial, sans-serif');
+            }''')
+            page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/_senren_english_theme_v4.7.0.js')
+            assert page.locator('#word').evaluate('(el)=>getComputedStyle(el).fontFamily').lower().startswith('arial'), 'Unchanged sync version erased a newer device choice'
+            # Repeat with a new webview as well as the reused reviewer above.
+            page.goto(url + '0-back.html')
+            page.evaluate('''css => {
+              localStorage.setItem('senren_english_settings_version', 'older');
+              document.documentElement.style.removeProperty('--english-serif');
+              const style=document.createElement('style'); style.textContent=css; document.head.appendChild(style);
+              delete window.SenrenEnglishTheme;
+            }''', saved_css)
+            page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/_senren_english_theme_v4.7.0.js')
+            assert page.locator('#word').evaluate('(el)=>getComputedStyle(el).fontFamily').lower().startswith('georgia'), 'Fresh phone reviewer restored an obsolete font'
+            checks += 22
         assert not errors, errors
         browser.close()
     server.shutdown()

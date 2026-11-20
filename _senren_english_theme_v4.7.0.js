@@ -1,7 +1,25 @@
 (function () {
   "use strict";
 
-  if (window.SenrenEnglishTheme) return;
+  const savedVersion = getComputedStyle(document.documentElement)
+    .getPropertyValue("--english-settings-version").trim();
+  if (savedVersion && localStorage.getItem("senren_english_settings_version") !== savedVersion) {
+    // Synced desktop fonts take precedence over this device's older overrides.
+    for (const variable of ["--english-serif", "--english-sans"]) {
+      localStorage.removeItem("senren_english_" + variable);
+      document.documentElement.style.removeProperty(variable);
+    }
+    localStorage.removeItem("senren_english_presets_cache");
+    localStorage.removeItem("senren_english_deck_presets_cache");
+    sessionStorage.removeItem("senren_english_last_deck");
+    sessionStorage.removeItem("senren_english_deck_preset_applied");
+    localStorage.setItem("senren_english_settings_version", savedVersion);
+  }
+
+  if (window.SenrenEnglishTheme) {
+    window.SenrenEnglishTheme.apply();
+    return;
+  }
 
   const modes = Object.freeze(["nord", "focus"]);
   const storageKey = "senren_english_--english-theme-mode";

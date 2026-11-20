@@ -4347,7 +4347,7 @@ var senren_englishConfig = {};
         return;
       }
       const script = document.createElement("script");
-      script.src = "_senren_english_settings_v4.7.0.js?v=20261008.1";
+      script.src = "_senren_english_settings_v4.7.0.js?v=20261120.1";
       script.onload = () => {
         setTimeout(callback, 100);
       };
