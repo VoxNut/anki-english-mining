@@ -8961,7 +8961,7 @@ html[data-senren_english-theme="nord"] :is(.definition-box, .glossary-box)
 .back #word .english-ipa ul { list-style: none; padding: 0; margin: 0; }
 .back #word .english-ipa li { display: block !important; text-align: center; white-space: normal; }
 .english-ipa i { font-style: normal; }
-.english-pos { order: 3; text-align: center; color: #81a1c1; font-size: .75rem; }
+.english-pos { order: 3; text-align: center; color: inherit; font-size: .75rem; }
 .english-links { flex-wrap: wrap; gap: 8px; }
 .english-links a { font-size: .65rem; padding: 4px 8px; text-decoration: none; color: inherit; aspect-ratio: auto !important; }
 .english-links a:focus-visible { outline: 2px solid currentColor; }

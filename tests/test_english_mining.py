@@ -75,6 +75,11 @@ def main():
                         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2'), (width, i, side, 'horizontal overflow')
                         checks += 3
                         if side == 'back':
+                            if note['PartOfSpeech']:
+                                for dark in [False, True]:
+                                    page.evaluate('(dark) => document.body.classList.toggle("nightMode", dark)', dark)
+                                    assert page.locator('.english-pos').evaluate('(el) => getComputedStyle(el).color === getComputedStyle(el.parentElement).color'), (theme, dark, 'Part of speech ignored card text color')
+                                    checks += 1
                             assert page.locator('#glossary').is_visible(), (i, 'Meaning hidden')
                             assert page.locator('#formattedSentence').inner_text().strip() == re.sub('<[^>]+>', '', note['Sentence']).strip()
                             assert page.locator('[data-english-lookup=youglish]').get_attribute('href').endswith('/english')
