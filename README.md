@@ -33,7 +33,7 @@ MiscInfo
 5. Reopen the reviewer. To use the desktop **Save** and **Save to Anki** controls, keep AnkiConnect installed and available at its default local address, `http://127.0.0.1:8765`.
 6. Sync Anki Desktop, then your mobile device, to transfer templates and media.
 
-Custom fonts are optional. The CSS can use `_KleeOne-SemiBold.ttf`, `_NotoSansJP.ttf`, and `_NotoSerifJP.ttf` from the media folder; font binaries are not included. Choose an installed font in Typography or add your preferred font files.
+Custom fonts are optional. The CSS can use `_KleeOne-SemiBold.ttf`, `_NotoSansJP.ttf`, `_NotoSerifJP.ttf`, and `_yumindb.ttf` (Yu Mincho Demibold) from the media folder; font binaries are not included. The Yu choice loads `_yumindb.ttf` on desktop and mobile, so a device without Yu Mincho installed does not silently fall back to Klee. Sync media as well as the collection after adding fonts. Other system font choices require that font on each device or an equivalent `@font-face` rule, as described in [Anki's font installation instructions](https://docs.ankiweb.net/templates/styling.html#installing-fonts).
 
 ## Controls
 

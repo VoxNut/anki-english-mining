@@ -2,6 +2,11 @@
 /* MOBILE FONTS
 ============================================ */
 @font-face {
+  font-family: "Yu Mincho";
+  src: url("_yumindb.ttf");
+}
+
+@font-face {
   font-family: klee;
   src: url("_KleeOne-SemiBold.ttf");
 }
@@ -18,7 +23,7 @@
 
 /* Custom Variables for Styling */
 :root {
-  --english-settings-version: "20261120.1";
+  --english-settings-version: "20261124.1";
   /* CARD NOTE */
   --english-notes-section-about: #5e81ac;
   --english-notes-section-caution: #bf616a;

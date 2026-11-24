@@ -51,6 +51,17 @@ def main():
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('dialog', lambda dialog: (_ for _ in ()).throw(AssertionError(dialog.message)))
+        # A device without native Yu Mincho must request its synced media file.
+        font_requests = []
+        page.route('**/_yumindb.ttf', lambda route: (font_requests.append(route.request.url), route.abort()))
+        page.goto(url + '0-back.html')
+        page.evaluate('''async () => {
+          document.documentElement.style.setProperty('--english-serif', '"Yu Mincho", klee, serif');
+          try { await document.fonts.load('24px "Yu Mincho"', 'English'); } catch (_) {}
+        }''')
+        assert font_requests, 'Yu Mincho silently fell back instead of requesting synced font media'
+        page.unroute('**/_yumindb.ttf')
+        checks += 1
         for width in [1200, 496, 360]:
             page.set_viewport_size({'width': width, 'height': 1000})
             for i, note in enumerate(notes):
